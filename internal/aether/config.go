@@ -115,6 +115,20 @@ func (s Settings) Port() int {
 	return s.SocksPort
 }
 
+// Normalized fills zero-value fields the UI would otherwise show as 0 / blank
+// (a settings row saved before a field had a value, or a partial save) with
+// their effective defaults, so the settings page always renders real choices.
+func (s Settings) Normalized() Settings {
+	s.SocksPort = s.Port()
+	if s.Mode == "" {
+		s.Mode = ModeMasque
+	}
+	if s.ExtraArgs == nil {
+		s.ExtraArgs = []string{}
+	}
+	return s
+}
+
 // Validate rejects a settings object the manager would refuse to run, naming the
 // field so the panel can show a usable message. Free-text fields that reach the
 // command line are checked here so a value cannot inject an unintended flag.

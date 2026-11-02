@@ -82,6 +82,29 @@ func TestValidateAcceptsCleanSettings(t *testing.T) {
 	}
 }
 
+// A settings row saved with a zero port and blank mode (an early/partial save)
+// must come back with the effective defaults, or the settings page shows 0 and
+// an empty mode dropdown.
+func TestNormalizedFillsZeroValues(t *testing.T) {
+	got := Settings{Enabled: true, SocksPort: 0, Mode: ""}.Normalized()
+	if got.SocksPort != DefaultSocksPort {
+		t.Fatalf("SocksPort = %d, want default %d", got.SocksPort, DefaultSocksPort)
+	}
+	if got.Mode != ModeMasque {
+		t.Fatalf("Mode = %q, want %q", got.Mode, ModeMasque)
+	}
+	if got.ExtraArgs == nil {
+		t.Fatal("ExtraArgs is nil, want empty slice")
+	}
+}
+
+func TestNormalizedKeepsRealValues(t *testing.T) {
+	got := Settings{Enabled: true, SocksPort: 3000, Mode: ModeGool}.Normalized()
+	if got.SocksPort != 3000 || got.Mode != ModeGool {
+		t.Fatalf("Normalized changed real values: port=%d mode=%q", got.SocksPort, got.Mode)
+	}
+}
+
 func TestPortAppliesDefault(t *testing.T) {
 	if got := (Settings{}).Port(); got != DefaultSocksPort {
 		t.Fatalf("Port() with zero = %d, want default %d", got, DefaultSocksPort)

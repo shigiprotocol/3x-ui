@@ -579,12 +579,9 @@ func (s *SettingService) GetAetherSettings() (aether.Settings, error) {
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		return aether.DefaultSettings(), nil
 	}
-	// Never hand back a nil slice: it marshals to JSON null and breaks the UI's
-	// join over extraArgs.
-	if cfg.ExtraArgs == nil {
-		cfg.ExtraArgs = []string{}
-	}
-	return cfg, nil
+	// A row saved before a field had a value yields a zero port / blank mode /
+	// nil extraArgs; normalize so the UI never shows 0 or an empty mode.
+	return cfg.Normalized(), nil
 }
 
 // SetAetherSettings validates and persists the Aether configuration.
