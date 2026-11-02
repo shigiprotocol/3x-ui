@@ -1,8 +1,8 @@
 package aether
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -11,7 +11,7 @@ import (
 // probe only: it opens and closes a connection without speaking SOCKS, so it does
 // not consume an endpoint or disturb Aether's own dialing.
 func waitForListener(port int, timeout time.Duration) bool {
-	addr := fmt.Sprintf("%s:%d", Loopback, port)
+	addr := net.JoinHostPort(Loopback, strconv.Itoa(port))
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)

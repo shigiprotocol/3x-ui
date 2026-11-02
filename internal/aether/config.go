@@ -8,6 +8,7 @@ package aether
 
 import (
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 
@@ -144,7 +145,7 @@ func (s Settings) Validate() error {
 // Args builds the Aether argument list from the settings. The SOCKS listener is
 // pinned to loopback on the chosen port; the mode and Psiphon flags follow.
 func (s Settings) Args() []string {
-	args := []string{"--bind", fmt.Sprintf("%s:%d", Loopback, s.Port())}
+	args := []string{"--bind", net.JoinHostPort(Loopback, strconv.Itoa(s.Port()))}
 
 	switch s.Mode {
 	case ModeGool:
