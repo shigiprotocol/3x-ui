@@ -171,6 +171,26 @@ jobs:
               rm -rf "${MTG_PKG}" "${MTG_PKG}.tar.gz"
               ;;
           esac
+          # Aether core (censorship-circumvention sidecar). The musl static
+          # archive bundles pt/ (psiphon-tunnel-core); the panel runs both from
+          # the bin folder and Aether finds pt/ beside its own binary. Only three
+          # arches have a musl build, so skip the rest without failing the build.
+          case "${{ matrix.platform }}" in
+            amd64) AETHER_ARCH="x86_64-musl" ;;
+            arm64) AETHER_ARCH="aarch64-musl" ;;
+            armv7) AETHER_ARCH="armv7-musl" ;;
+            *) AETHER_ARCH="" ;;
+          esac
+          if [ -n "$AETHER_ARCH" ]; then
+            AETHER_TGZ="aether-linux-${AETHER_ARCH}.tar.gz"
+            if fetch "https://github.com/CluvexStudio/Aether/releases/latest/download/${AETHER_TGZ}"; then
+              tar -xzf "${AETHER_TGZ}" aether pt LICENSES
+              chmod +x aether
+              rm -f "${AETHER_TGZ}"
+            else
+              echo "release: Aether download failed for ${AETHER_ARCH}; packaging without the Aether core"
+            fi
+          fi
           cd ../..
 
       - name: Package
