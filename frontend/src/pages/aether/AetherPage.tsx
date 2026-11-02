@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Button,
@@ -63,7 +63,7 @@ function AetherPage() {
   const [settings, setSettings] = useState<AetherSettings>(defaultSettings);
   const [status, setStatus] = useState<AetherStatus | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const msg = await HttpUtil.get<AetherStatusView>('/panel/api/aether/status', undefined, {
       silent: true,
     });
@@ -72,11 +72,11 @@ function AetherPage() {
       setStatus(msg.obj.status);
     }
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const save = async () => {
     setSaving(true);
@@ -108,15 +108,25 @@ function AetherPage() {
             <Col xs={24} lg={16}>
               <Card>
                 <Form layout="vertical">
-                  <Form.Item label={t('pages.aether.enable')} help={t('pages.aether.enableHelp')}>
+                  <Form.Item
+                    htmlFor="aether-enabled"
+                    label={t('pages.aether.enable')}
+                    help={t('pages.aether.enableHelp')}
+                  >
                     <Switch
+                      id="aether-enabled"
                       checked={settings.enabled}
                       onChange={(enabled) => setSettings((s) => ({ ...s, enabled }))}
                     />
                   </Form.Item>
 
-                  <Form.Item label={t('pages.aether.socksPort')} help={t('pages.aether.socksPortHelp')}>
+                  <Form.Item
+                    htmlFor="aether-socks-port"
+                    label={t('pages.aether.socksPort')}
+                    help={t('pages.aether.socksPortHelp')}
+                  >
                     <InputNumber
+                      id="aether-socks-port"
                       min={0}
                       max={65535}
                       value={settings.socksPort}
@@ -126,8 +136,9 @@ function AetherPage() {
                     />
                   </Form.Item>
 
-                  <Form.Item label={t('pages.aether.mode')}>
+                  <Form.Item htmlFor="aether-mode" label={t('pages.aether.mode')}>
                     <Select<AetherMode>
+                      id="aether-mode"
                       value={settings.mode}
                       onChange={(mode) => setSettings((s) => ({ ...s, mode }))}
                       options={[
@@ -138,8 +149,9 @@ function AetherPage() {
                     />
                   </Form.Item>
 
-                  <Form.Item label={t('pages.aether.psiphon')}>
+                  <Form.Item htmlFor="aether-psiphon" label={t('pages.aether.psiphon')}>
                     <Select<PsiphonMode>
+                      id="aether-psiphon"
                       value={settings.psiphon}
                       onChange={(psiphon) => setSettings((s) => ({ ...s, psiphon }))}
                       options={[
@@ -154,10 +166,12 @@ function AetherPage() {
                   {psiphonActive && (
                     <>
                       <Form.Item
+                        htmlFor="aether-psiphon-region"
                         label={t('pages.aether.psiphonRegion')}
                         help={t('pages.aether.psiphonRegionHelp')}
                       >
                         <Input
+                          id="aether-psiphon-region"
                           maxLength={2}
                           value={settings.psiphonRegion}
                           onChange={(e) =>
@@ -166,10 +180,12 @@ function AetherPage() {
                         />
                       </Form.Item>
                       <Form.Item
+                        htmlFor="aether-psiphon-cdn-sets"
                         label={t('pages.aether.psiphonCdnSets')}
                         help={t('pages.aether.psiphonCdnSetsHelp')}
                       >
                         <Input
+                          id="aether-psiphon-cdn-sets"
                           value={settings.psiphonCdnSets}
                           onChange={(e) =>
                             setSettings((s) => ({ ...s, psiphonCdnSets: e.target.value }))
@@ -179,8 +195,13 @@ function AetherPage() {
                     </>
                   )}
 
-                  <Form.Item label={t('pages.aether.extraArgs')} help={t('pages.aether.extraArgsHelp')}>
+                  <Form.Item
+                    htmlFor="aether-extra-args"
+                    label={t('pages.aether.extraArgs')}
+                    help={t('pages.aether.extraArgsHelp')}
+                  >
                     <Input.TextArea
+                      id="aether-extra-args"
                       rows={3}
                       value={settings.extraArgs.join('\n')}
                       onChange={(e) =>
