@@ -1,0 +1,30 @@
+name: Aether Build Check
+
+# Fast compile/vet gate for the Aether integration branch. Lighter than ci.yml:
+# it only builds and vets, so feedback comes back in a couple of minutes.
+on:
+  push:
+    branches:
+      - feat/aether-core
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Stub internal/web/dist for go:embed
+        run: mkdir -p internal/web/dist && touch internal/web/dist/.gitkeep
+      - name: Build all packages
+        run: go build ./...
+      - name: Vet aether package
+        run: go vet ./internal/aether/...
+      - name: Test aether package
+        run: go test -count=1 ./internal/aether/...
