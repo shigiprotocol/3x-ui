@@ -579,6 +579,11 @@ func (s *SettingService) GetAetherSettings() (aether.Settings, error) {
 	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
 		return aether.DefaultSettings(), nil
 	}
+	// Never hand back a nil slice: it marshals to JSON null and breaks the UI's
+	// join over extraArgs.
+	if cfg.ExtraArgs == nil {
+		cfg.ExtraArgs = []string{}
+	}
 	return cfg, nil
 }
 

@@ -185,7 +185,7 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
         <Input.TextArea
           id="aether-extra-args"
           rows={3}
-          value={settings.extraArgs.join('\n')}
+          value={(settings.extraArgs ?? []).join('\n')}
           onChange={(e) =>
             setSettings((s) => ({
               ...s,
@@ -258,7 +258,12 @@ function AetherPage() {
   });
 
   const loaded = statusQuery.data;
-  const initial = loaded?.settings ? { ...defaultSettings, ...loaded.settings } : defaultSettings;
+  // The backend marshals an unset extraArgs slice as JSON null, which would
+  // overwrite the default []; coerce it back to an array so the editor's join()
+  // never sees null.
+  const initial: AetherSettings = loaded?.settings
+    ? { ...defaultSettings, ...loaded.settings, extraArgs: loaded.settings.extraArgs ?? [] }
+    : defaultSettings;
   // Remount the editor when a fresh server payload arrives so it reseeds without
   // an effect. updatedAt changes on every successful fetch.
   const editorKey = statusQuery.dataUpdatedAt;

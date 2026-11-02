@@ -104,7 +104,7 @@ type Settings struct {
 
 // DefaultSettings is the off state.
 func DefaultSettings() Settings {
-	return Settings{Enabled: false, SocksPort: DefaultSocksPort, Mode: ModeMasque}
+	return Settings{Enabled: false, SocksPort: DefaultSocksPort, Mode: ModeMasque, ExtraArgs: []string{}}
 }
 
 // Port is the effective SOCKS port, applying the default.
