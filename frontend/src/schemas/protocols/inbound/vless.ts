@@ -43,5 +43,8 @@ export const VlessInboundSettingsSchema = z.object({
   encryption: z.string().min(1).default('none'),
   fallbacks: z.array(VlessFallbackSchema).default([]),
   testseed: z.array(z.number().int().positive()).length(4).optional(),
+  // When set, the panel egresses this inbound's traffic through the Aether core
+  // (a socks outbound + routing rule injected at runtime). See internal/aether.
+  routeThroughAether: z.boolean().optional(),
 });
 export type VlessInboundSettings = z.infer<typeof VlessInboundSettingsSchema>;

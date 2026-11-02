@@ -2548,7 +2548,9 @@
         "getSettings": "دریافت تنظیمات ایثر",
         "saveSettings": "ذخیره‌ی تنظیمات ایثر",
         "restart": "راه‌اندازی مجدد ایثر"
-      }
+      },
+      "routeThroughAether": "عبور اوت‌باند از ایثر",
+      "routeThroughAetherHelp": "ترافیک این اینباند از دل هسته‌ی ایثر خارج می‌شود."
     }
   },
   "tgbot": {

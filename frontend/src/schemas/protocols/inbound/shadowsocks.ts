@@ -35,5 +35,8 @@ export const ShadowsocksInboundSettingsSchema = z.object({
   network: SSNetworkSchema.default('tcp,udp'),
   clients: z.array(ShadowsocksClientSchema).default([]),
   ivCheck: z.boolean().default(false),
+  // When set, the panel egresses this inbound's traffic through the Aether core
+  // (a socks outbound + routing rule injected at runtime). See internal/aether.
+  routeThroughAether: z.boolean().optional(),
 });
 export type ShadowsocksInboundSettings = z.infer<typeof ShadowsocksInboundSettingsSchema>;

@@ -2548,7 +2548,9 @@
         "getSettings": "Get Aether settings",
         "saveSettings": "Save Aether settings",
         "restart": "Restart Aether"
-      }
+      },
+      "routeThroughAether": "Route outbound through Aether",
+      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core."
     }
   },
   "tgbot": {

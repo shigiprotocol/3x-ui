@@ -25,5 +25,8 @@ export type VmessClient = z.infer<typeof VmessClientSchema>;
 
 export const VmessInboundSettingsSchema = z.object({
   clients: z.array(VmessClientSchema).default([]),
+  // When set, the panel egresses this inbound's traffic through the Aether core
+  // (a socks outbound + routing rule injected at runtime). See internal/aether.
+  routeThroughAether: z.boolean().optional(),
 });
 export type VmessInboundSettings = z.infer<typeof VmessInboundSettingsSchema>;
