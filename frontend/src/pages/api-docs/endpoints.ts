@@ -254,6 +254,45 @@ export const sections: readonly Section[] = [
   },
 
   {
+    id: 'aether',
+    title: 'Aether',
+    description:
+      'Manage the Aether censorship-circumvention core. The core runs as a managed child process exposing a loopback SOCKS5 proxy; an inbound opts in with routeThroughAether and its traffic egresses through Aether (optionally with Psiphon carried inside the tunnel). All endpoints live under /panel/api/aether.',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/panel/api/aether/status',
+        summary:
+          'Return the saved Aether settings and the live state of the core process (running, ready, loopback SOCKS port, pid, last error).',
+        response:
+          '{\n  "success": true,\n  "obj": {\n    "settings": { "enabled": true, "socksPort": 2019, "mode": "masque", "psiphon": "chain" },\n    "status": { "running": true, "ready": true, "port": 2019, "pid": 1234 }\n  }\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/aether/settings',
+        summary:
+          'Validate and persist the Aether settings, then rebuild the Xray config so the core and the injected outbound reconcile. Body is the settings object.',
+        params: [
+          { name: 'enabled', in: 'body', type: 'boolean', desc: 'Whether the Aether core may run.' },
+          { name: 'socksPort', in: 'body', type: 'number', desc: 'Loopback SOCKS5 port; 0 uses the default (2019).', optional: true },
+          { name: 'mode', in: 'body', type: 'string', desc: 'Tunnel shape: masque, gool, or mim.', optional: true },
+          { name: 'psiphon', in: 'body', type: 'string', desc: 'Psiphon combination: empty (off), chain, reverse, or only.', optional: true },
+          { name: 'psiphonRegion', in: 'body', type: 'string', desc: 'Two-letter exit country for Psiphon, e.g. DE.', optional: true },
+          { name: 'psiphonCdnSets', in: 'body', type: 'string', desc: 'Comma-separated Psiphon CDN edge lists.', optional: true },
+        ],
+        body: '{\n  "enabled": true,\n  "socksPort": 2019,\n  "mode": "gool",\n  "psiphon": "chain",\n  "psiphonRegion": "DE"\n}',
+        response: '{\n  "success": true,\n  "msg": "Aether settings saved"\n}',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/aether/restart',
+        summary: 'Force a Xray restart so the Aether core is reconciled to the current settings.',
+        response: '{\n  "success": true,\n  "msg": "Aether restarted"\n}',
+      },
+    ],
+  },
+
+  {
     id: 'inbounds',
     title: 'Inbounds',
     description:
