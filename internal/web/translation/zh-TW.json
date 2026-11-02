@@ -2544,8 +2544,6 @@
       "pid": "PID",
       "save": "Save",
       "restart": "Restart core",
-      "routeThroughAether": "Route outbound through Aether",
-      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core.",
       "toasts": {
         "getSettings": "Get Aether settings",
         "saveSettings": "Save Aether settings",
