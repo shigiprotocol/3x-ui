@@ -19,6 +19,10 @@ export const keys = {
     root: () => ['sub-balancers'] as const,
     list: () => ['sub-balancers', 'list'] as const,
   },
+  aether: {
+    root: () => ['aether'] as const,
+    status: () => ['aether', 'status'] as const,
+  },
   settings: {
     root: () => ['settings'] as const,
     all: () => ['settings', 'all'] as const,

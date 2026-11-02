@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Button,
   Card,
@@ -19,6 +20,7 @@ import {
 
 import AppSidebar from '@/layouts/AppSidebar';
 import { HttpUtil } from '@/utils';
+import { keys } from '@/api/queryKeys';
 
 type AetherMode = 'masque' | 'gool' | 'mim';
 type PsiphonMode = '' | 'chain' | 'reverse' | 'only';
@@ -56,42 +58,51 @@ const defaultSettings: AetherSettings = {
   extraArgs: [],
 };
 
+async function fetchStatus(): Promise<AetherStatusView | null> {
+  const msg = await HttpUtil.get<AetherStatusView>('/panel/api/aether/status', undefined, {
+    silent: true,
+  });
+  return msg.success && msg.obj ? msg.obj : null;
+}
+
 function AetherPage() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+
+  const statusQuery = useQuery({
+    queryKey: keys.aether.status(),
+    queryFn: fetchStatus,
+    retry: false,
+  });
+
   const [settings, setSettings] = useState<AetherSettings>(defaultSettings);
-  const [status, setStatus] = useState<AetherStatus | null>(null);
 
-  const load = useCallback(async () => {
-    const msg = await HttpUtil.get<AetherStatusView>('/panel/api/aether/status', undefined, {
-      silent: true,
-    });
-    if (msg.success && msg.obj) {
-      setSettings({ ...defaultSettings, ...msg.obj.settings });
-      setStatus(msg.obj.status);
-    }
-    setLoading(false);
-  }, []);
-
+  // Seed the editable form from the server once the status loads; the query is
+  // the source of truth, local state carries the in-progress edits.
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (statusQuery.data?.settings) {
+      setSettings({ ...defaultSettings, ...statusQuery.data.settings });
+    }
+  }, [statusQuery.data]);
 
-  const save = async () => {
-    setSaving(true);
-    const msg = await HttpUtil.post('/panel/api/aether/settings', settings);
-    setSaving(false);
-    if (msg.success) void load();
-  };
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.aether.root() });
 
-  const restart = async () => {
-    setSaving(true);
-    await HttpUtil.post('/panel/api/aether/restart', {});
-    setSaving(false);
-    void load();
-  };
+  const saveMut = useMutation({
+    mutationFn: (payload: AetherSettings) => HttpUtil.post('/panel/api/aether/settings', payload),
+    onSuccess: (msg) => {
+      if (msg?.success) invalidate();
+    },
+  });
 
+  const restartMut = useMutation({
+    mutationFn: () => HttpUtil.post('/panel/api/aether/restart', {}),
+    onSuccess: (msg) => {
+      if (msg?.success) invalidate();
+    },
+  });
+
+  const status = statusQuery.data?.status ?? null;
+  const busy = saveMut.isPending || restartMut.isPending;
   const psiphonActive = settings.psiphon !== '';
 
   return (
@@ -101,7 +112,7 @@ function AetherPage() {
         <Typography.Title level={3}>{t('pages.aether.title')}</Typography.Title>
         <Typography.Paragraph type="secondary">{t('pages.aether.subtitle')}</Typography.Paragraph>
 
-        {loading ? (
+        {statusQuery.isLoading ? (
           <Spin />
         ) : (
           <Row gutter={16}>
@@ -217,10 +228,19 @@ function AetherPage() {
                   </Form.Item>
 
                   <Space>
-                    <Button type="primary" loading={saving} onClick={() => void save()}>
+                    <Button
+                      type="primary"
+                      loading={saveMut.isPending}
+                      disabled={busy}
+                      onClick={() => saveMut.mutate(settings)}
+                    >
                       {t('pages.aether.save')}
                     </Button>
-                    <Button loading={saving} onClick={() => void restart()}>
+                    <Button
+                      loading={restartMut.isPending}
+                      disabled={busy}
+                      onClick={() => restartMut.mutate()}
+                    >
                       {t('pages.aether.restart')}
                     </Button>
                   </Space>
@@ -245,7 +265,8 @@ function AetherPage() {
                       ))}
                   </Space>
                   <div>
-                    {t('pages.aether.port')}: <Typography.Text code>{status?.port ?? '-'}</Typography.Text>
+                    {t('pages.aether.port')}:{' '}
+                    <Typography.Text code>{status?.port ?? '-'}</Typography.Text>
                   </div>
                   {status?.pid ? (
                     <div>
