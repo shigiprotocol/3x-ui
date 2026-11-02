@@ -126,7 +126,8 @@
     "openMenu": "فتح القائمة",
     "pinSidebar": "تثبيت الشريط الجانبي",
     "unpinSidebar": "إلغاء تثبيت الشريط الجانبي",
-    "subFormats": "Sub Formats"
+    "subFormats": "Sub Formats",
+    "aether": "Aether"
   },
   "pages": {
     "login": {
@@ -2511,6 +2512,45 @@
       "visit": "زيارة",
       "yourBrand": "علامتك التجارية هنا",
       "yourBrandText": "ضع شركتك أمام آلاف مسؤولي الخوادم الذين يفتحون 3X-UI كل يوم."
+    },
+    "aether": {
+      "title": "Aether Core",
+      "subtitle": "Run the Aether censorship-circumvention core and route inbounds through it.",
+      "enable": "Enable Aether core",
+      "enableHelp": "The core runs only when enabled and at least one inbound routes through it.",
+      "socksPort": "SOCKS port",
+      "socksPortHelp": "Loopback SOCKS5 port the core listens on. Leave 0 for the default.",
+      "mode": "Tunnel mode",
+      "modeMasque": "MASQUE (default)",
+      "modeGool": "WireGuard over MASQUE (gool)",
+      "modeMim": "Nested MASQUE (mim)",
+      "psiphon": "Psiphon",
+      "psiphonOff": "Off",
+      "psiphonChain": "Chain (aether then psiphon)",
+      "psiphonReverse": "Reverse (tunnel through psiphon)",
+      "psiphonOnly": "Psiphon only (no tunnel)",
+      "psiphonRegion": "Psiphon exit region",
+      "psiphonRegionHelp": "Two-letter country code, e.g. DE. Leave blank to let Psiphon choose.",
+      "psiphonCdnSets": "Psiphon CDN sets",
+      "psiphonCdnSetsHelp": "Comma-separated edge lists, e.g. psiphon-akamai,vercel.",
+      "extraArgs": "Extra arguments",
+      "extraArgsHelp": "Advanced: extra command-line flags, one per line.",
+      "status": "Status",
+      "statusRunning": "Running",
+      "statusStopped": "Stopped",
+      "statusReady": "Ready",
+      "statusNotReady": "Starting",
+      "port": "Port",
+      "pid": "PID",
+      "save": "Save",
+      "restart": "Restart core",
+      "routeThroughAether": "Route outbound through Aether",
+      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core.",
+      "toasts": {
+        "getSettings": "Get Aether settings",
+        "saveSettings": "Save Aether settings",
+        "restart": "Restart Aether"
+      }
     }
   },
   "tgbot": {
