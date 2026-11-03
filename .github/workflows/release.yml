@@ -2,6 +2,10 @@ name: Release 3X-UI
 
 on:
   workflow_dispatch:
+  # A release published from the GitHub UI creates a tag without emitting a push
+  # event, so `push: tags` alone never fires for it. Trigger on the release too.
+  release:
+    types: [published]
   # Only main (dev channel) and version tags ship binaries; build any other
   # branch on demand via workflow_dispatch.
   # No `paths` filter: GitHub applies a push paths filter to tag pushes too, so a
@@ -201,10 +205,10 @@ jobs:
 
       - name: Upload files to GH release
         uses: svenstaro/upload-release-action@v2
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.release.tag_name || github.ref_name }}
           file: x-ui-linux-${{ matrix.platform }}.tar.gz*
           file_glob: true
           overwrite: true
@@ -342,10 +346,10 @@ jobs:
 
       - name: Upload files to GH release
         uses: svenstaro/upload-release-action@v2
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.release.tag_name || github.ref_name }}
           file: x-ui-windows-amd64.zip*
           file_glob: true
           overwrite: true
