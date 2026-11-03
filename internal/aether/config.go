@@ -213,6 +213,10 @@ func (s Settings) Args() []string {
 		args = append(args, "--h3")
 	}
 
+	// The core also prompts on stdin for a scan mode and an IP version; naming
+	// both keeps it fully non-interactive. balanced + IPv4 are its own defaults.
+	args = append(args, "--scan", "balanced", "-4")
+
 	switch s.Psiphon {
 	case PsiphonChain:
 		args = append(args, "--psiphon")
