@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/mhsanaei/3x-ui/v3/internal/aether"
 	"github.com/mhsanaei/3x-ui/v3/internal/config"
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
@@ -205,6 +206,7 @@ var defaultValueMap = map[string]string{
 	"restartXrayOnClientDisable":  "true",
 	"xrayOutboundTestUrl":         "https://www.google.com/generate_204",
 	"panelOutbound":               "",
+	"aetherSettings":              "",
 	"devChannelEnable":            "false",
 
 	// LDAP defaults
@@ -560,6 +562,38 @@ func (s *SettingService) GetPanelOutbound() (string, error) {
 
 func (s *SettingService) SetPanelOutbound(tag string) error {
 	return s.setString("panelOutbound", tag)
+}
+
+// GetAetherSettings returns the panel's Aether core configuration. A blank or
+// unparsable stored value yields the off default, so the feature stays safely
+// disabled when nothing was ever saved.
+func (s *SettingService) GetAetherSettings() (aether.Settings, error) {
+	raw, err := s.getString("aetherSettings")
+	if err != nil {
+		return aether.DefaultSettings(), err
+	}
+	if raw == "" {
+		return aether.DefaultSettings(), nil
+	}
+	var cfg aether.Settings
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return aether.DefaultSettings(), nil
+	}
+	// A row saved before a field had a value yields a zero port / blank mode /
+	// nil extraArgs; normalize so the UI never shows 0 or an empty mode.
+	return cfg.Normalized(), nil
+}
+
+// SetAetherSettings validates and persists the Aether configuration.
+func (s *SettingService) SetAetherSettings(cfg aether.Settings) error {
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return s.setString("aetherSettings", string(raw))
 }
 
 // PanelEgressProxyURL resolves the loopback SOCKS bridge that the generated

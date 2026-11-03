@@ -31,5 +31,8 @@ export type TrojanClient = z.infer<typeof TrojanClientSchema>;
 export const TrojanInboundSettingsSchema = z.object({
   clients: z.array(TrojanClientSchema).default([]),
   fallbacks: z.array(TrojanFallbackSchema).default([]),
+  // When set, the panel egresses this inbound's traffic through the Aether core
+  // (a socks outbound + routing rule injected at runtime). See internal/aether.
+  routeThroughAether: z.boolean().optional(),
 });
 export type TrojanInboundSettings = z.infer<typeof TrojanInboundSettingsSchema>;

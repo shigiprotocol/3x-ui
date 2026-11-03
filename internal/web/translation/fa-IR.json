@@ -126,7 +126,8 @@
     "openMenu": "باز کردن منو",
     "pinSidebar": "ثابت کردن نوار کناری",
     "unpinSidebar": "برداشتن تثبیت نوار کناری",
-    "subFormats": "Sub Formats"
+    "subFormats": "Sub Formats",
+    "aether": "ایثر"
   },
   "pages": {
     "login": {
@@ -2511,6 +2512,45 @@
       "visit": "مشاهده",
       "yourBrand": "جای برند شما",
       "yourBrandText": "شرکت خود را جلوی چشم هزاران ادمین سروری بگذارید که هر روز 3X-UI را باز می‌کنند."
+    },
+    "aether": {
+      "title": "هسته‌ی ایثر",
+      "subtitle": "هسته‌ی دور زدن سانسور ایثر را اجرا کنید و اینباندها را از آن عبور دهید.",
+      "enable": "فعال‌سازی هسته‌ی ایثر",
+      "enableHelp": "هسته فقط وقتی اجرا می‌شود که فعال باشد و دست‌کم یک اینباند از آن عبور کند.",
+      "socksPort": "پورت SOCKS",
+      "socksPortHelp": "پورت SOCKS5 لوکال که هسته روی آن گوش می‌دهد. برای مقدار پیش‌فرض، 0 بگذارید.",
+      "mode": "حالت تونل",
+      "modeMasque": "MASQUE (پیش‌فرض)",
+      "modeGool": "وایرگارد روی MASQUE (gool)",
+      "modeMim": "MASQUE تودرتو (mim)",
+      "psiphon": "سایفون",
+      "psiphonOff": "خاموش",
+      "psiphonChain": "زنجیره‌ای (ایثر سپس سایفون)",
+      "psiphonReverse": "معکوس (تونل از دل سایفون)",
+      "psiphonOnly": "فقط سایفون (بدون تونل)",
+      "psiphonRegion": "منطقه‌ی خروج سایفون",
+      "psiphonRegionHelp": "کد دو حرفی کشور، مثلاً DE. برای انتخاب خودکار خالی بگذارید.",
+      "psiphonCdnSets": "مجموعه‌های CDN سایفون",
+      "psiphonCdnSetsHelp": "فهرست‌های لبه با کاما، مثلاً psiphon-akamai,vercel.",
+      "extraArgs": "آرگومان‌های اضافی",
+      "extraArgsHelp": "پیشرفته: فلگ‌های اضافی خط فرمان، هر کدام در یک خط.",
+      "status": "وضعیت",
+      "statusRunning": "در حال اجرا",
+      "statusStopped": "متوقف",
+      "statusReady": "آماده",
+      "statusNotReady": "در حال شروع",
+      "port": "پورت",
+      "pid": "شناسه‌ی پروسه",
+      "save": "ذخیره",
+      "restart": "راه‌اندازی مجدد هسته",
+      "toasts": {
+        "getSettings": "دریافت تنظیمات ایثر",
+        "saveSettings": "ذخیره‌ی تنظیمات ایثر",
+        "restart": "راه‌اندازی مجدد ایثر"
+      },
+      "routeThroughAether": "عبور اوت‌باند از ایثر",
+      "routeThroughAetherHelp": "ترافیک این اینباند از دل هسته‌ی ایثر خارج می‌شود."
     }
   },
   "tgbot": {

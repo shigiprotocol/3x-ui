@@ -244,6 +244,10 @@ export default function InboundFormModal({
   const selectableNodes = (availableNodes || []).filter((n) => n.enable);
   const protocol = (useWatch({ control, name: 'protocol' }) ?? '') as string;
   const isNodeEligible = !!NODE_ELIGIBLE_PROTOCOLS[protocol];
+  // Aether egress applies to the proxy protocols whose settings carry the flag.
+  const aetherEligible = (
+    [Protocols.VLESS, Protocols.VMESS, Protocols.TROJAN, Protocols.SHADOWSOCKS] as string[]
+  ).includes(protocol);
   /*
    * The `node` share-address strategy only means something when the inbound can
    * actually live on a node — otherwise the node address it would resolve to is
@@ -778,6 +782,16 @@ export default function InboundFormModal({
           {t('pages.inbounds.leaveBlankToNeverExpire')}
         </span>
       </Form.Item>
+      {aetherEligible && (
+        <FormField
+          name={['settings', 'routeThroughAether']}
+          valueProp="checked"
+          label={t('pages.aether.routeThroughAether')}
+          tooltip={t('pages.aether.routeThroughAetherHelp')}
+        >
+          <Switch id="inbound-route-through-aether" />
+        </FormField>
+      )}
     </>
   );
 

@@ -2,23 +2,20 @@ name: Release 3X-UI
 
 on:
   workflow_dispatch:
+  # A release published from the GitHub UI creates a tag without emitting a push
+  # event, so `push: tags` alone never fires for it. Trigger on the release too.
+  release:
+    types: [published]
   # Only main (dev channel) and version tags ship binaries; build any other
   # branch on demand via workflow_dispatch.
+  # No `paths` filter: GitHub applies a push paths filter to tag pushes too, so a
+  # version tag whose commit touched no listed path would silently build nothing.
+  # A version tag (and a main push) must always build a release.
   push:
     branches:
       - main
     tags:
       - "v*.*.*"
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
-      - "**.sh"
-      - "frontend/**"
-      - "x-ui.service.debian"
-      - "x-ui.service.arch"
-      - "x-ui.service.rhel"
-      - ".github/workflows/release.yml"
 
 jobs:
   build:
@@ -171,6 +168,26 @@ jobs:
               rm -rf "${MTG_PKG}" "${MTG_PKG}.tar.gz"
               ;;
           esac
+          # Aether core (censorship-circumvention sidecar). The musl static
+          # archive bundles pt/ (psiphon-tunnel-core); the panel runs both from
+          # the bin folder and Aether finds pt/ beside its own binary. Only three
+          # arches have a musl build, so skip the rest without failing the build.
+          case "${{ matrix.platform }}" in
+            amd64) AETHER_ARCH="x86_64-musl" ;;
+            arm64) AETHER_ARCH="aarch64-musl" ;;
+            armv7) AETHER_ARCH="armv7-musl" ;;
+            *) AETHER_ARCH="" ;;
+          esac
+          if [ -n "$AETHER_ARCH" ]; then
+            AETHER_TGZ="aether-linux-${AETHER_ARCH}.tar.gz"
+            if fetch "https://github.com/CluvexStudio/Aether/releases/latest/download/${AETHER_TGZ}"; then
+              tar -xzf "${AETHER_TGZ}" aether pt LICENSES
+              chmod +x aether
+              rm -f "${AETHER_TGZ}"
+            else
+              echo "release: Aether download failed for ${AETHER_ARCH}; packaging without the Aether core"
+            fi
+          fi
           cd ../..
 
       - name: Package
@@ -188,10 +205,10 @@ jobs:
 
       - name: Upload files to GH release
         uses: svenstaro/upload-release-action@v2
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.release.tag_name || github.ref_name }}
           file: x-ui-linux-${{ matrix.platform }}.tar.gz*
           file_glob: true
           overwrite: true
@@ -329,10 +346,10 @@ jobs:
 
       - name: Upload files to GH release
         uses: svenstaro/upload-release-action@v2
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) || github.event_name == 'release'
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.release.tag_name || github.ref_name }}
           file: x-ui-windows-amd64.zip*
           file_glob: true
           overwrite: true

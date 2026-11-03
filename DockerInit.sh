@@ -64,6 +64,27 @@ tar -xzf "${MTG_PKG}.tar.gz"
 mv "${MTG_PKG}/mtg-multi" "${MTG_BIN}"
 rm -rf "${MTG_PKG}" "${MTG_PKG}.tar.gz"
 chmod +x "${MTG_BIN}"
+# Aether core (censorship-circumvention sidecar). The release archive is musl-
+# static and bundles psiphon-tunnel-core under pt/, which the panel runs from
+# the bin folder; the core finds pt/ beside its own binary. Only amd64/arm64/
+# armv7 have a musl build, so skip other arches without failing the image.
+case $PLATFORM in
+    amd64) AETHER_ARCH="x86_64-musl" ;;
+    arm64) AETHER_ARCH="aarch64-musl" ;;
+    armv7) AETHER_ARCH="armv7-musl" ;;
+    *) AETHER_ARCH="" ;;
+esac
+if [ -n "$AETHER_ARCH" ]; then
+    AETHER_TGZ="aether-linux-${AETHER_ARCH}.tar.gz"
+    if curl -sfLRO "https://github.com/CluvexStudio/Aether/releases/latest/download/${AETHER_TGZ}"; then
+        # Keep LICENSES too: Aether is AGPL-3.0 and bundles third-party notices.
+        tar -xzf "${AETHER_TGZ}" aether pt LICENSES
+        chmod +x aether
+        rm -f "${AETHER_TGZ}"
+    else
+        echo "DockerInit: Aether download failed for ${AETHER_ARCH}; the panel will build without the Aether core" >&2
+    fi
+fi
 curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
 curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
 curl -sfLRo geoip_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat

@@ -126,7 +126,8 @@
     "openMenu": "Buka menu",
     "pinSidebar": "Sematkan bilah sisi",
     "unpinSidebar": "Lepas sematan bilah sisi",
-    "subFormats": "Sub Formats"
+    "subFormats": "Sub Formats",
+    "aether": "Aether"
   },
   "pages": {
     "login": {
@@ -2511,6 +2512,45 @@
       "visit": "Kunjungi",
       "yourBrand": "Merek Anda di sini",
       "yourBrandText": "Tampilkan perusahaan Anda kepada ribuan admin server yang membuka 3X-UI setiap hari."
+    },
+    "aether": {
+      "title": "Aether Core",
+      "subtitle": "Run the Aether censorship-circumvention core and route inbounds through it.",
+      "enable": "Enable Aether core",
+      "enableHelp": "The core runs only when enabled and at least one inbound routes through it.",
+      "socksPort": "SOCKS port",
+      "socksPortHelp": "Loopback SOCKS5 port the core listens on. Leave 0 for the default.",
+      "mode": "Tunnel mode",
+      "modeMasque": "MASQUE (default)",
+      "modeGool": "WireGuard over MASQUE (gool)",
+      "modeMim": "Nested MASQUE (mim)",
+      "psiphon": "Psiphon",
+      "psiphonOff": "Off",
+      "psiphonChain": "Chain (aether then psiphon)",
+      "psiphonReverse": "Reverse (tunnel through psiphon)",
+      "psiphonOnly": "Psiphon only (no tunnel)",
+      "psiphonRegion": "Psiphon exit region",
+      "psiphonRegionHelp": "Two-letter country code, e.g. DE. Leave blank to let Psiphon choose.",
+      "psiphonCdnSets": "Psiphon CDN sets",
+      "psiphonCdnSetsHelp": "Comma-separated edge lists, e.g. psiphon-akamai,vercel.",
+      "extraArgs": "Extra arguments",
+      "extraArgsHelp": "Advanced: extra command-line flags, one per line.",
+      "status": "Status",
+      "statusRunning": "Running",
+      "statusStopped": "Stopped",
+      "statusReady": "Ready",
+      "statusNotReady": "Starting",
+      "port": "Port",
+      "pid": "PID",
+      "save": "Save",
+      "restart": "Restart core",
+      "toasts": {
+        "getSettings": "Get Aether settings",
+        "saveSettings": "Save Aether settings",
+        "restart": "Restart Aether"
+      },
+      "routeThroughAether": "Route outbound through Aether",
+      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core."
     }
   },
   "tgbot": {
