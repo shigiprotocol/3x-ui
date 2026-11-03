@@ -162,11 +162,16 @@ func (s Settings) Validate() error {
 func (s Settings) Args() []string {
 	args := []string{"--bind", net.JoinHostPort(Loopback, strconv.Itoa(s.Port()))}
 
+	// A protocol flag must always be explicit: with none, the core drops into an
+	// interactive protocol menu and never starts (it waits on stdin the panel
+	// never provides).
 	switch s.Mode {
 	case ModeGool:
 		args = append(args, "--gool")
 	case ModeMim:
 		args = append(args, "--mim")
+	default:
+		args = append(args, "--masque")
 	}
 
 	switch s.Psiphon {

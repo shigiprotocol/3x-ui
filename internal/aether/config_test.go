@@ -14,9 +14,9 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "masque default binds loopback socks only",
+			name: "masque default sends explicit --masque to skip the interactive menu",
 			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque},
-			want: []string{"--bind", "127.0.0.1:2019"},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque"},
 		},
 		{
 			name: "gool adds --gool",
@@ -34,12 +34,12 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 				Enabled: true, SocksPort: 2019, Mode: ModeMasque,
 				Psiphon: PsiphonChain, PsiphonRegion: "de", PsiphonCdnSets: "psiphon-akamai,vercel",
 			},
-			want: []string{"--bind", "127.0.0.1:2019", "--psiphon", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--psiphon", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
 		},
 		{
-			name: "psiphon only",
-			in:   Settings{Enabled: true, SocksPort: 2019, Psiphon: PsiphonOnly},
-			want: []string{"--bind", "127.0.0.1:2019", "--psiphon-only"},
+			name: "psiphon only still names the base protocol",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Psiphon: PsiphonOnly},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--psiphon-only"},
 		},
 	}
 	for _, tt := range tests {
