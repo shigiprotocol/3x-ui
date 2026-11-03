@@ -143,7 +143,9 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
           min={0}
           max={65535}
           value={settings.socksPort}
-          onChange={(socksPort) => setSettings((s) => ({ ...s, socksPort: Number(socksPort) || 0 }))}
+          onChange={(socksPort) =>
+            setSettings((s) => ({ ...s, socksPort: Number(socksPort) || 0 }))
+          }
         />
       </Form.Item>
 
@@ -196,7 +198,11 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
         </>
       )}
 
-      <Form.Item htmlFor="aether-scan" label={t('pages.aether.scan')} help={t('pages.aether.scanHelp')}>
+      <Form.Item
+        htmlFor="aether-scan"
+        label={t('pages.aether.scan')}
+        help={t('pages.aether.scanHelp')}
+      >
         <Select<ScanMode>
           id="aether-scan"
           value={settings.scan}
@@ -377,9 +383,7 @@ function AetherStatusCard({ status }: { status: AetherStatus | null }) {
             {t('pages.aether.pid')}: <Typography.Text code>{status.pid}</Typography.Text>
           </div>
         ) : null}
-        {status?.lastErr ? (
-          <Typography.Text type="danger">{status.lastErr}</Typography.Text>
-        ) : null}
+        {status?.lastErr ? <Typography.Text type="danger">{status.lastErr}</Typography.Text> : null}
       </Space>
     </Card>
   );
@@ -412,7 +416,9 @@ function AetherPage() {
         <Layout className="content-shell">
           <Layout.Content className="content-area">
             <Typography.Title level={3}>{t('pages.aether.title')}</Typography.Title>
-            <Typography.Paragraph type="secondary">{t('pages.aether.subtitle')}</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">
+              {t('pages.aether.subtitle')}
+            </Typography.Paragraph>
 
             {statusQuery.isLoading ? (
               <Spin />

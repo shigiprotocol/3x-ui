@@ -5024,6 +5024,10 @@
       "description": "Two authentication modes are supported. UI sessions use a cookie set by the login endpoint. Programmatic clients (bots, scripts, remote panels) authenticate with a Bearer token taken from Settings → Security → API Token. Both work for every endpoint under /panel/api/*."
     },
     {
+      "name": "Aether",
+      "description": "Manage the Aether censorship-circumvention core. The core runs as a managed child process exposing a loopback SOCKS5 proxy; an inbound opts in with routeThroughAether and its traffic egresses through Aether (optionally with Psiphon carried inside the tunnel). All endpoints live under /panel/api/aether."
+    },
+    {
       "name": "Inbounds",
       "description": "Manage inbound configurations and their clients. All endpoints live under /panel/api/inbounds and require a logged-in session or Bearer token. Link-generating endpoints honour forwarded headers only when the request comes from a configured trusted proxy."
     },
@@ -5310,6 +5314,167 @@
                 "example": {
                   "success": true,
                   "obj": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/aether/status": {
+      "get": {
+        "tags": [
+          "Aether"
+        ],
+        "summary": "Return the saved Aether settings and the live state of the core process (running, ready, loopback SOCKS port, pid, last error).",
+        "operationId": "get_panel_api_aether_status",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "settings": {
+                      "enabled": true,
+                      "socksPort": 2019,
+                      "mode": "masque",
+                      "psiphon": "chain"
+                    },
+                    "status": {
+                      "running": true,
+                      "ready": true,
+                      "port": 2019,
+                      "pid": 1234
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/aether/settings": {
+      "post": {
+        "tags": [
+          "Aether"
+        ],
+        "summary": "Validate and persist the Aether settings, then rebuild the Xray config so the core and the injected outbound reconcile. Body is the settings object.",
+        "operationId": "post_panel_api_aether_settings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether the Aether core may run."
+                  },
+                  "socksPort": {
+                    "type": "integer",
+                    "description": "Loopback SOCKS5 port; 0 uses the default (2019)."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "Tunnel shape: masque, gool, or mim."
+                  },
+                  "psiphon": {
+                    "type": "string",
+                    "description": "Psiphon combination: empty (off), chain, reverse, or only."
+                  },
+                  "psiphonRegion": {
+                    "type": "string",
+                    "description": "Two-letter exit country for Psiphon, e.g. DE."
+                  },
+                  "psiphonCdnSets": {
+                    "type": "string",
+                    "description": "Comma-separated Psiphon CDN edge lists."
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              },
+              "example": {
+                "enabled": true,
+                "socksPort": 2019,
+                "mode": "gool",
+                "psiphon": "chain",
+                "psiphonRegion": "DE"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "Aether settings saved"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/aether/restart": {
+      "post": {
+        "tags": [
+          "Aether"
+        ],
+        "summary": "Force a Xray restart so the Aether core is reconciled to the current settings.",
+        "operationId": "post_panel_api_aether_restart",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "msg": "Aether restarted"
                 }
               }
             }

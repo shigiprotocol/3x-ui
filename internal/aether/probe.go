@@ -1,6 +1,7 @@
 package aether
 
 import (
+	"context"
 	"net"
 	"strconv"
 	"time"
@@ -13,8 +14,11 @@ import (
 func waitForListener(port int, timeout time.Duration) bool {
 	addr := net.JoinHostPort(Loopback, strconv.Itoa(port))
 	deadline := time.Now().Add(timeout)
+	dialer := net.Dialer{Timeout: 500 * time.Millisecond}
 	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		cancel()
 		if err == nil {
 			_ = conn.Close()
 			return true
