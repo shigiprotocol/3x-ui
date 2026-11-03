@@ -1754,10 +1754,10 @@ install_x-ui() {
         if [[ "$tag_version" == "dev" || "$tag_version" == "dev-latest" ]]; then
             tag_version="dev-latest"
             echo -e "${yellow}Installing the rolling dev build (tag: dev-latest). This is a per-commit pre-release, not a stable version.${plain}"
-        elif [[ "$tag_version" == *-* ]]; then
-            # A pre-release/test tag (e.g. v0.0.3-test) skips the stable-version
-            # floor; it is installed as-is for testing.
-            echo -e "${yellow}Installing a pre-release build (tag: ${tag_version}). Not a stable version.${plain}"
+        elif [[ "$tag_version" == *-* || "$GH_REPO" != "MHSanaei/3x-ui" ]]; then
+            # A pre-release/test tag, or any tag from a fork, skips the upstream
+            # stable-version floor: a fork has its own versioning.
+            echo -e "${yellow}Installing ${tag_version} from ${GH_REPO}. Version floor skipped.${plain}"
         else
             tag_version_numeric=${tag_version#v}
             min_version="2.3.5"
