@@ -14,32 +14,37 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "masque default sends explicit --masque to skip the interactive menu",
-			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque},
-			want: []string{"--bind", "127.0.0.1:2019", "--masque"},
+			name: "masque default sends explicit --masque and --h3 to skip both menus",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3"},
+		},
+		{
+			name: "h2 transport sends --h2",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH2},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h2"},
 		},
 		{
 			name: "gool adds --gool",
-			in:   Settings{Enabled: true, SocksPort: 3000, Mode: ModeGool},
-			want: []string{"--bind", "127.0.0.1:3000", "--gool"},
+			in:   Settings{Enabled: true, SocksPort: 3000, Mode: ModeGool, Transport: TransportH3},
+			want: []string{"--bind", "127.0.0.1:3000", "--gool", "--h3"},
 		},
 		{
 			name: "mim adds --mim",
-			in:   Settings{Enabled: true, SocksPort: 3000, Mode: ModeMim},
-			want: []string{"--bind", "127.0.0.1:3000", "--mim"},
+			in:   Settings{Enabled: true, SocksPort: 3000, Mode: ModeMim, Transport: TransportH3},
+			want: []string{"--bind", "127.0.0.1:3000", "--mim", "--h3"},
 		},
 		{
 			name: "psiphon chain with region and cdn sets",
 			in: Settings{
-				Enabled: true, SocksPort: 2019, Mode: ModeMasque,
+				Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3,
 				Psiphon: PsiphonChain, PsiphonRegion: "de", PsiphonCdnSets: "psiphon-akamai,vercel",
 			},
-			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--psiphon", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--psiphon", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
 		},
 		{
 			name: "psiphon only still names the base protocol",
-			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Psiphon: PsiphonOnly},
-			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--psiphon-only"},
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Psiphon: PsiphonOnly},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--psiphon-only"},
 		},
 	}
 	for _, tt := range tests {

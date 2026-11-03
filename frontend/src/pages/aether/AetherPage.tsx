@@ -23,12 +23,14 @@ import { HttpUtil } from '@/utils';
 import { keys } from '@/api/queryKeys';
 
 type AetherMode = 'masque' | 'gool' | 'mim';
+type AetherTransport = 'h3' | 'h2';
 type PsiphonMode = '' | 'chain' | 'reverse' | 'only';
 
 interface AetherSettings {
   enabled: boolean;
   socksPort: number;
   mode: AetherMode;
+  transport: AetherTransport;
   psiphon: PsiphonMode;
   psiphonRegion: string;
   psiphonCdnSets: string;
@@ -52,6 +54,7 @@ const defaultSettings: AetherSettings = {
   enabled: false,
   socksPort: 2019,
   mode: 'masque',
+  transport: 'h3',
   psiphon: '',
   psiphonRegion: '',
   psiphonCdnSets: '',
@@ -134,6 +137,22 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
             { value: 'masque', label: t('pages.aether.modeMasque') },
             { value: 'gool', label: t('pages.aether.modeGool') },
             { value: 'mim', label: t('pages.aether.modeMim') },
+          ]}
+        />
+      </Form.Item>
+
+      <Form.Item
+        htmlFor="aether-transport"
+        label={t('pages.aether.transport')}
+        help={t('pages.aether.transportHelp')}
+      >
+        <Select<AetherTransport>
+          id="aether-transport"
+          value={settings.transport}
+          onChange={(transport) => setSettings((s) => ({ ...s, transport }))}
+          options={[
+            { value: 'h3', label: t('pages.aether.transportH3') },
+            { value: 'h2', label: t('pages.aether.transportH2') },
           ]}
         />
       </Form.Item>

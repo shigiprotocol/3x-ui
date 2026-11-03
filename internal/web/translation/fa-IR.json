@@ -2550,7 +2550,11 @@
         "restart": "راه‌اندازی مجدد ایثر"
       },
       "routeThroughAether": "عبور اوت‌باند از ایثر",
-      "routeThroughAetherHelp": "ترافیک این اینباند از دل هسته‌ی ایثر خارج می‌شود."
+      "routeThroughAetherHelp": "ترافیک این اینباند از دل هسته‌ی ایثر خارج می‌شود.",
+      "transport": "ترنسپورت MASQUE",
+      "transportHelp": "HTTP/3 (QUIC) سریع‌ترین است؛ HTTP/2 مثل HTTPS معمولی دیده می‌شود و جایی که QUIC/UDP بسته است کار می‌کند.",
+      "transportH3": "HTTP/3 (QUIC، پیش‌فرض)",
+      "transportH2": "HTTP/2 (TCP، برای UDP بسته)"
     }
   },
   "tgbot": {

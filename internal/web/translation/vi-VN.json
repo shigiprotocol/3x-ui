@@ -2550,7 +2550,11 @@
         "restart": "Restart Aether"
       },
       "routeThroughAether": "Route outbound through Aether",
-      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core."
+      "routeThroughAetherHelp": "This inbound's traffic egresses through the Aether core.",
+      "transport": "MASQUE transport",
+      "transportHelp": "HTTP/3 (QUIC) is fastest; HTTP/2 looks like plain HTTPS and works where QUIC/UDP is blocked.",
+      "transportH3": "HTTP/3 (QUIC, default)",
+      "transportH2": "HTTP/2 (TCP, for blocked UDP)"
     }
   },
   "tgbot": {

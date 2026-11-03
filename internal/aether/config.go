@@ -55,6 +55,28 @@ func (m Mode) valid() bool {
 	}
 }
 
+// Transport is the MASQUE carrier. Naming it explicitly keeps the core out of
+// its interactive transport menu.
+type Transport string
+
+const (
+	// TransportH3 is MASQUE over HTTP/3 (QUIC): the fastest handshake, but needs
+	// healthy UDP; the core's default.
+	TransportH3 Transport = "h3"
+	// TransportH2 is MASQUE over HTTP/2 (TCP): looks like ordinary HTTPS, for
+	// networks that block or throttle QUIC/UDP (the shape PattNG uses).
+	TransportH2 Transport = "h2"
+)
+
+func (tr Transport) valid() bool {
+	switch tr {
+	case TransportH3, TransportH2, "":
+		return true
+	default:
+		return false
+	}
+}
+
 // PsiphonMode selects how Psiphon is combined with the Aether tunnel. Psiphon is
 // built into the Aether core; the panel only picks the flag.
 type PsiphonMode string
@@ -89,6 +111,9 @@ type Settings struct {
 	// SocksPort is the loopback SOCKS5 port; 0 means DefaultSocksPort.
 	SocksPort int  `json:"socksPort"`
 	Mode      Mode `json:"mode"`
+	// Transport is the MASQUE carrier (h3/h2); empty means h3. It only applies to
+	// masque-based modes.
+	Transport Transport `json:"transport"`
 
 	Psiphon PsiphonMode `json:"psiphon"`
 	// PsiphonRegion asks Psiphon to leave from this country, e.g. "DE"; empty lets
@@ -105,7 +130,7 @@ type Settings struct {
 
 // DefaultSettings is the off state.
 func DefaultSettings() Settings {
-	return Settings{Enabled: false, SocksPort: DefaultSocksPort, Mode: ModeMasque, ExtraArgs: []string{}}
+	return Settings{Enabled: false, SocksPort: DefaultSocksPort, Mode: ModeMasque, Transport: TransportH3, ExtraArgs: []string{}}
 }
 
 // Port is the effective SOCKS port, applying the default.
@@ -124,6 +149,9 @@ func (s Settings) Normalized() Settings {
 	if s.Mode == "" {
 		s.Mode = ModeMasque
 	}
+	if s.Transport == "" {
+		s.Transport = TransportH3
+	}
 	if s.ExtraArgs == nil {
 		s.ExtraArgs = []string{}
 	}
@@ -136,6 +164,9 @@ func (s Settings) Normalized() Settings {
 func (s Settings) Validate() error {
 	if !s.Mode.valid() {
 		return fmt.Errorf("aether: unknown mode %q", s.Mode)
+	}
+	if !s.Transport.valid() {
+		return fmt.Errorf("aether: unknown transport %q", s.Transport)
 	}
 	if !s.Psiphon.valid() {
 		return fmt.Errorf("aether: unknown psiphon mode %q", s.Psiphon)
@@ -172,6 +203,14 @@ func (s Settings) Args() []string {
 		args = append(args, "--mim")
 	default:
 		args = append(args, "--masque")
+	}
+
+	// Name the MASQUE carrier so the core skips its transport menu. h3 is the
+	// default; h2 looks like plain HTTPS for networks that block QUIC/UDP.
+	if s.Transport == TransportH2 {
+		args = append(args, "--h2")
+	} else {
+		args = append(args, "--h3")
 	}
 
 	switch s.Psiphon {
