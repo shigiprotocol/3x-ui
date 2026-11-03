@@ -39,14 +39,31 @@ const (
 	// ModeMasque is Aether's default: a MASQUE (HTTP/3 or HTTP/2) tunnel over
 	// discovered endpoints.
 	ModeMasque Mode = "masque"
+	// ModeWireGuard is a plain WireGuard (WARP) tunnel (--wg).
+	ModeWireGuard Mode = "wg"
 	// ModeGool is WireGuard-over-MASQUE (--gool), a WireGuard tunnel inside a
 	// MASQUE one for a different exit address.
 	ModeGool Mode = "gool"
+	// ModeGoolClassic is the older gool: WireGuard tunneled in WireGuard
+	// (--gool-classic).
+	ModeGoolClassic Mode = "gool-classic"
 	// ModeMim is nested MASQUE (--mim), a masque tunnel inside another one.
 	ModeMim Mode = "mim"
 )
 
 func (m Mode) valid() bool {
+	switch m {
+	case ModeMasque, ModeWireGuard, ModeGool, ModeGoolClassic, ModeMim, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// usesMasqueTransport reports whether the mode runs over a MASQUE carrier, so the
+// h2/h3 transport and TLS fragment flags apply. Plain WireGuard and classic gool
+// do not.
+func (m Mode) usesMasqueTransport() bool {
 	switch m {
 	case ModeMasque, ModeGool, ModeMim, "":
 		return true
@@ -76,6 +93,87 @@ func (tr Transport) valid() bool {
 		return false
 	}
 }
+
+// ScanMode is how hard the core hunts for a working gateway.
+type ScanMode string
+
+const (
+	ScanTurbo    ScanMode = "turbo"
+	ScanBalanced ScanMode = "balanced"
+	ScanThorough ScanMode = "thorough"
+	ScanVerified ScanMode = "verified"
+	ScanIronclad ScanMode = "ironclad"
+)
+
+func (sm ScanMode) valid() bool {
+	switch sm {
+	case ScanTurbo, ScanBalanced, ScanThorough, ScanVerified, ScanIronclad, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// IPVersion is which address family the scan and tunnel use.
+type IPVersion string
+
+const (
+	IPv4  IPVersion = "v4"
+	IPv6  IPVersion = "v6"
+	IPAny IPVersion = "both"
+)
+
+func (ip IPVersion) valid() bool {
+	switch ip {
+	case IPv4, IPv6, IPAny, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// Obfuscation is the --noize profile that shapes the tunnel's traffic.
+type Obfuscation string
+
+const (
+	NoizeOff        Obfuscation = "off"
+	NoizeLight      Obfuscation = "light"
+	NoizeFirewall   Obfuscation = "firewall"
+	NoizeBalanced   Obfuscation = "balanced"
+	NoizeGfw        Obfuscation = "gfw"
+	NoizeAggressive Obfuscation = "aggressive"
+)
+
+func (o Obfuscation) valid() bool {
+	switch o {
+	case NoizeOff, NoizeLight, NoizeFirewall, NoizeBalanced, NoizeGfw, NoizeAggressive, "":
+		return true
+	default:
+		return false
+	}
+}
+
+// TorMode selects how Tor is combined with the tunnel. Tor and Psiphon both ride
+// inside the tunnel, so only one may be on at a time.
+type TorMode string
+
+const (
+	TorOff     TorMode = ""
+	TorChain   TorMode = "chain"
+	TorReverse TorMode = "reverse"
+	TorOnly    TorMode = "only"
+)
+
+func (tm TorMode) valid() bool {
+	switch tm {
+	case TorOff, TorChain, TorReverse, TorOnly:
+		return true
+	default:
+		return false
+	}
+}
+
+func (tm TorMode) enabled() bool { return tm != TorOff }
 
 // PsiphonMode selects how Psiphon is combined with the Aether tunnel. Psiphon is
 // built into the Aether core; the panel only picks the flag.
@@ -114,6 +212,15 @@ type Settings struct {
 	// Transport is the MASQUE carrier (h3/h2); empty means h3. It only applies to
 	// masque-based modes.
 	Transport Transport `json:"transport"`
+	// Scan is how hard the core hunts for a gateway; empty means balanced.
+	Scan ScanMode `json:"scan"`
+	// IPVersion is the address family to scan/connect; empty means v4.
+	IPVersion IPVersion `json:"ipVersion"`
+	// Obfuscation is the --noize profile; empty leaves the core's default.
+	Obfuscation Obfuscation `json:"obfuscation"`
+	// Fragment splits the TLS ClientHello on the HTTP/2 transport (helps on DPI
+	// networks). Only applies to the h2 masque transport.
+	Fragment bool `json:"fragment"`
 
 	Psiphon PsiphonMode `json:"psiphon"`
 	// PsiphonRegion asks Psiphon to leave from this country, e.g. "DE"; empty lets
@@ -123,6 +230,9 @@ type Settings struct {
 	// comma-separated (e.g. "psiphon-akamai,vercel"); empty means Psiphon's default.
 	PsiphonCdnSets string `json:"psiphonCdnSets"`
 
+	// Tor rides inside the tunnel like Psiphon; the two are mutually exclusive.
+	Tor TorMode `json:"tor"`
+
 	// ExtraArgs are additional raw flags for power users, applied verbatim after
 	// the generated ones. Each entry is one argv token (no shell splitting).
 	ExtraArgs []string `json:"extraArgs"`
@@ -130,7 +240,11 @@ type Settings struct {
 
 // DefaultSettings is the off state.
 func DefaultSettings() Settings {
-	return Settings{Enabled: false, SocksPort: DefaultSocksPort, Mode: ModeMasque, Transport: TransportH3, ExtraArgs: []string{}}
+	return Settings{
+		Enabled: false, SocksPort: DefaultSocksPort,
+		Mode: ModeMasque, Transport: TransportH3, Scan: ScanBalanced, IPVersion: IPv4,
+		ExtraArgs: []string{},
+	}
 }
 
 // Port is the effective SOCKS port, applying the default.
@@ -152,6 +266,12 @@ func (s Settings) Normalized() Settings {
 	if s.Transport == "" {
 		s.Transport = TransportH3
 	}
+	if s.Scan == "" {
+		s.Scan = ScanBalanced
+	}
+	if s.IPVersion == "" {
+		s.IPVersion = IPv4
+	}
 	if s.ExtraArgs == nil {
 		s.ExtraArgs = []string{}
 	}
@@ -168,8 +288,23 @@ func (s Settings) Validate() error {
 	if !s.Transport.valid() {
 		return fmt.Errorf("aether: unknown transport %q", s.Transport)
 	}
+	if !s.Scan.valid() {
+		return fmt.Errorf("aether: unknown scan mode %q", s.Scan)
+	}
+	if !s.IPVersion.valid() {
+		return fmt.Errorf("aether: unknown ip version %q", s.IPVersion)
+	}
+	if !s.Obfuscation.valid() {
+		return fmt.Errorf("aether: unknown obfuscation %q", s.Obfuscation)
+	}
 	if !s.Psiphon.valid() {
 		return fmt.Errorf("aether: unknown psiphon mode %q", s.Psiphon)
+	}
+	if !s.Tor.valid() {
+		return fmt.Errorf("aether: unknown tor mode %q", s.Tor)
+	}
+	if s.Psiphon.enabled() && s.Tor.enabled() {
+		return fmt.Errorf("aether: psiphon and tor cannot both run inside the tunnel; pick one")
 	}
 	if s.SocksPort < 0 || s.SocksPort > 65535 {
 		return fmt.Errorf("aether: socks port %d out of range", s.SocksPort)
@@ -197,25 +332,51 @@ func (s Settings) Args() []string {
 	// interactive protocol menu and never starts (it waits on stdin the panel
 	// never provides).
 	switch s.Mode {
+	case ModeWireGuard:
+		args = append(args, "--wg")
 	case ModeGool:
 		args = append(args, "--gool")
+	case ModeGoolClassic:
+		args = append(args, "--gool-classic")
 	case ModeMim:
 		args = append(args, "--mim")
 	default:
 		args = append(args, "--masque")
 	}
 
-	// Name the MASQUE carrier so the core skips its transport menu. h3 is the
-	// default; h2 looks like plain HTTPS for networks that block QUIC/UDP.
-	if s.Transport == TransportH2 {
-		args = append(args, "--h2")
-	} else {
-		args = append(args, "--h3")
+	// The MASQUE carrier (and its TLS fragmentation) only apply to masque-based
+	// modes; naming it skips the core's transport menu. h3 is the default; h2
+	// looks like plain HTTPS for networks that block QUIC/UDP.
+	if s.Mode.usesMasqueTransport() {
+		if s.Transport == TransportH2 {
+			args = append(args, "--h2")
+			if s.Fragment {
+				args = append(args, "--fragment")
+			}
+		} else {
+			args = append(args, "--h3")
+		}
 	}
 
-	// The core also prompts on stdin for a scan mode and an IP version; naming
-	// both keeps it fully non-interactive. balanced + IPv4 are its own defaults.
-	args = append(args, "--scan", "balanced", "-4")
+	// The core also prompts for a scan mode and an IP version; naming both keeps
+	// it fully non-interactive.
+	scan := s.Scan
+	if scan == "" {
+		scan = ScanBalanced
+	}
+	args = append(args, "--scan", string(scan))
+	switch s.IPVersion {
+	case IPv6:
+		args = append(args, "-6")
+	case IPAny:
+		args = append(args, "--dual")
+	default:
+		args = append(args, "-4")
+	}
+
+	if s.Obfuscation != "" {
+		args = append(args, "--noize", string(s.Obfuscation))
+	}
 
 	switch s.Psiphon {
 	case PsiphonChain:
@@ -232,6 +393,15 @@ func (s Settings) Args() []string {
 		if s.PsiphonCdnSets != "" {
 			args = append(args, "--psiphon-cdn-sets", s.PsiphonCdnSets)
 		}
+	}
+
+	switch s.Tor {
+	case TorChain:
+		args = append(args, "--tor")
+	case TorReverse:
+		args = append(args, "--tor-reverse")
+	case TorOnly:
+		args = append(args, "--tor-only")
 	}
 
 	args = append(args, s.ExtraArgs...)

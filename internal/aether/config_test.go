@@ -46,6 +46,36 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Psiphon: PsiphonOnly},
 			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--psiphon-only"},
 		},
+		{
+			name: "wireguard omits the masque transport flag",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeWireGuard, Transport: TransportH3, Scan: ScanTurbo},
+			want: []string{"--bind", "127.0.0.1:2019", "--wg", "--scan", "turbo", "-4"},
+		},
+		{
+			name: "gool-classic omits the masque transport flag",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeGoolClassic, Transport: TransportH2, Scan: ScanBalanced},
+			want: []string{"--bind", "127.0.0.1:2019", "--gool-classic", "--scan", "balanced", "-4"},
+		},
+		{
+			name: "h2 with fragment adds --fragment",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH2, Fragment: true, Scan: ScanBalanced},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h2", "--fragment", "--scan", "balanced", "-4"},
+		},
+		{
+			name: "ipv6 and noize and thorough scan",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Scan: ScanThorough, IPVersion: IPv6, Obfuscation: NoizeGfw},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "thorough", "-6", "--noize", "gfw"},
+		},
+		{
+			name: "dual ip",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Scan: ScanBalanced, IPVersion: IPAny},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "--dual"},
+		},
+		{
+			name: "tor chain",
+			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Scan: ScanBalanced, Tor: TorChain},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--tor"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,6 +99,11 @@ func TestValidateRejectsFlagInjection(t *testing.T) {
 		{"cdn sets with space flag", Settings{Mode: ModeMasque, Psiphon: PsiphonChain, PsiphonCdnSets: "a --tor"}},
 		{"unknown mode", Settings{Mode: Mode("evil")}},
 		{"unknown psiphon", Settings{Mode: ModeMasque, Psiphon: PsiphonMode("evil")}},
+		{"unknown scan", Settings{Mode: ModeMasque, Scan: ScanMode("evil")}},
+		{"unknown ip version", Settings{Mode: ModeMasque, IPVersion: IPVersion("evil")}},
+		{"unknown obfuscation", Settings{Mode: ModeMasque, Obfuscation: Obfuscation("evil")}},
+		{"unknown tor", Settings{Mode: ModeMasque, Tor: TorMode("evil")}},
+		{"tor and psiphon both on", Settings{Mode: ModeMasque, Psiphon: PsiphonChain, Tor: TorChain}},
 		{"port out of range", Settings{Mode: ModeMasque, SocksPort: 70000}},
 		{"extra arg with newline", Settings{Mode: ModeMasque, ExtraArgs: []string{"ok\ninjected"}}},
 	}

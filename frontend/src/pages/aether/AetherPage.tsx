@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Col,
+  ConfigProvider,
   Form,
   Input,
   InputNumber,
@@ -19,21 +20,31 @@ import {
 } from 'antd';
 
 import AppSidebar from '@/layouts/AppSidebar';
+import { useTheme } from '@/hooks/useTheme';
 import { HttpUtil } from '@/utils';
 import { keys } from '@/api/queryKeys';
 
-type AetherMode = 'masque' | 'gool' | 'mim';
+type AetherMode = 'masque' | 'wg' | 'gool' | 'gool-classic' | 'mim';
 type AetherTransport = 'h3' | 'h2';
+type ScanMode = 'turbo' | 'balanced' | 'thorough' | 'verified' | 'ironclad';
+type IPVersion = 'v4' | 'v6' | 'both';
+type Obfuscation = '' | 'off' | 'light' | 'firewall' | 'balanced' | 'gfw' | 'aggressive';
 type PsiphonMode = '' | 'chain' | 'reverse' | 'only';
+type TorMode = '' | 'chain' | 'reverse' | 'only';
 
 interface AetherSettings {
   enabled: boolean;
   socksPort: number;
   mode: AetherMode;
   transport: AetherTransport;
+  scan: ScanMode;
+  ipVersion: IPVersion;
+  obfuscation: Obfuscation;
+  fragment: boolean;
   psiphon: PsiphonMode;
   psiphonRegion: string;
   psiphonCdnSets: string;
+  tor: TorMode;
   extraArgs: string[];
 }
 
@@ -55,9 +66,14 @@ const defaultSettings: AetherSettings = {
   socksPort: 2019,
   mode: 'masque',
   transport: 'h3',
+  scan: 'balanced',
+  ipVersion: 'v4',
+  obfuscation: '',
+  fragment: false,
   psiphon: '',
   psiphonRegion: '',
   psiphonCdnSets: '',
+  tor: '',
   extraArgs: [],
 };
 
@@ -99,6 +115,9 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
 
   const busy = saveMut.isPending || restartMut.isPending;
   const psiphonActive = settings.psiphon !== '';
+  const torActive = settings.tor !== '';
+  const masqueBased =
+    settings.mode === 'masque' || settings.mode === 'gool' || settings.mode === 'mim';
 
   return (
     <Form layout="vertical">
@@ -135,32 +154,106 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
           onChange={(mode) => setSettings((s) => ({ ...s, mode }))}
           options={[
             { value: 'masque', label: t('pages.aether.modeMasque') },
+            { value: 'wg', label: t('pages.aether.modeWg') },
             { value: 'gool', label: t('pages.aether.modeGool') },
+            { value: 'gool-classic', label: t('pages.aether.modeGoolClassic') },
             { value: 'mim', label: t('pages.aether.modeMim') },
           ]}
         />
       </Form.Item>
 
-      <Form.Item
-        htmlFor="aether-transport"
-        label={t('pages.aether.transport')}
-        help={t('pages.aether.transportHelp')}
-      >
-        <Select<AetherTransport>
-          id="aether-transport"
-          value={settings.transport}
-          onChange={(transport) => setSettings((s) => ({ ...s, transport }))}
+      {masqueBased && (
+        <>
+          <Form.Item
+            htmlFor="aether-transport"
+            label={t('pages.aether.transport')}
+            help={t('pages.aether.transportHelp')}
+          >
+            <Select<AetherTransport>
+              id="aether-transport"
+              value={settings.transport}
+              onChange={(transport) => setSettings((s) => ({ ...s, transport }))}
+              options={[
+                { value: 'h3', label: t('pages.aether.transportH3') },
+                { value: 'h2', label: t('pages.aether.transportH2') },
+              ]}
+            />
+          </Form.Item>
+
+          {settings.transport === 'h2' && (
+            <Form.Item
+              htmlFor="aether-fragment"
+              label={t('pages.aether.fragment')}
+              help={t('pages.aether.fragmentHelp')}
+            >
+              <Switch
+                id="aether-fragment"
+                checked={settings.fragment}
+                onChange={(fragment) => setSettings((s) => ({ ...s, fragment }))}
+              />
+            </Form.Item>
+          )}
+        </>
+      )}
+
+      <Form.Item htmlFor="aether-scan" label={t('pages.aether.scan')} help={t('pages.aether.scanHelp')}>
+        <Select<ScanMode>
+          id="aether-scan"
+          value={settings.scan}
+          onChange={(scan) => setSettings((s) => ({ ...s, scan }))}
           options={[
-            { value: 'h3', label: t('pages.aether.transportH3') },
-            { value: 'h2', label: t('pages.aether.transportH2') },
+            { value: 'turbo', label: t('pages.aether.scanTurbo') },
+            { value: 'balanced', label: t('pages.aether.scanBalanced') },
+            { value: 'thorough', label: t('pages.aether.scanThorough') },
+            { value: 'verified', label: t('pages.aether.scanVerified') },
+            { value: 'ironclad', label: t('pages.aether.scanIronclad') },
           ]}
         />
       </Form.Item>
 
-      <Form.Item htmlFor="aether-psiphon" label={t('pages.aether.psiphon')}>
+      <Form.Item htmlFor="aether-ip" label={t('pages.aether.ipVersion')}>
+        <Select<IPVersion>
+          id="aether-ip"
+          value={settings.ipVersion}
+          onChange={(ipVersion) => setSettings((s) => ({ ...s, ipVersion }))}
+          options={[
+            { value: 'v4', label: t('pages.aether.ipv4') },
+            { value: 'v6', label: t('pages.aether.ipv6') },
+            { value: 'both', label: t('pages.aether.ipDual') },
+          ]}
+        />
+      </Form.Item>
+
+      <Form.Item
+        htmlFor="aether-noize"
+        label={t('pages.aether.obfuscation')}
+        help={t('pages.aether.obfuscationHelp')}
+      >
+        <Select<Obfuscation>
+          id="aether-noize"
+          value={settings.obfuscation}
+          onChange={(obfuscation) => setSettings((s) => ({ ...s, obfuscation }))}
+          options={[
+            { value: '', label: t('pages.aether.obfuscationDefault') },
+            { value: 'off', label: t('pages.aether.obfuscationOff') },
+            { value: 'light', label: t('pages.aether.obfuscationLight') },
+            { value: 'firewall', label: t('pages.aether.obfuscationFirewall') },
+            { value: 'balanced', label: t('pages.aether.obfuscationBalanced') },
+            { value: 'gfw', label: t('pages.aether.obfuscationGfw') },
+            { value: 'aggressive', label: t('pages.aether.obfuscationAggressive') },
+          ]}
+        />
+      </Form.Item>
+
+      <Form.Item
+        htmlFor="aether-psiphon"
+        label={t('pages.aether.psiphon')}
+        help={torActive ? t('pages.aether.psiphonTorExclusive') : undefined}
+      >
         <Select<PsiphonMode>
           id="aether-psiphon"
           value={settings.psiphon}
+          disabled={torActive}
           onChange={(psiphon) => setSettings((s) => ({ ...s, psiphon }))}
           options={[
             { value: '', label: t('pages.aether.psiphonOff') },
@@ -200,6 +293,25 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
           </Form.Item>
         </>
       )}
+
+      <Form.Item
+        htmlFor="aether-tor"
+        label={t('pages.aether.tor')}
+        help={psiphonActive ? t('pages.aether.psiphonTorExclusive') : t('pages.aether.torHelp')}
+      >
+        <Select<TorMode>
+          id="aether-tor"
+          value={settings.tor}
+          disabled={psiphonActive}
+          onChange={(tor) => setSettings((s) => ({ ...s, tor }))}
+          options={[
+            { value: '', label: t('pages.aether.torOff') },
+            { value: 'chain', label: t('pages.aether.torChain') },
+            { value: 'reverse', label: t('pages.aether.torReverse') },
+            { value: 'only', label: t('pages.aether.torOnly') },
+          ]}
+        />
+      </Form.Item>
 
       <Form.Item
         htmlFor="aether-extra-args"
@@ -275,6 +387,7 @@ function AetherStatusCard({ status }: { status: AetherStatus | null }) {
 
 function AetherPage() {
   const { t } = useTranslation();
+  const { antdThemeConfig } = useTheme();
   const statusQuery = useQuery({
     queryKey: keys.aether.status(),
     queryFn: fetchStatus,
@@ -293,28 +406,32 @@ function AetherPage() {
   const editorKey = statusQuery.dataUpdatedAt;
 
   return (
-    <Layout>
-      <AppSidebar />
-      <Layout.Content style={{ padding: 24 }}>
-        <Typography.Title level={3}>{t('pages.aether.title')}</Typography.Title>
-        <Typography.Paragraph type="secondary">{t('pages.aether.subtitle')}</Typography.Paragraph>
+    <ConfigProvider theme={antdThemeConfig}>
+      <Layout>
+        <AppSidebar />
+        <Layout className="content-shell">
+          <Layout.Content className="content-area">
+            <Typography.Title level={3}>{t('pages.aether.title')}</Typography.Title>
+            <Typography.Paragraph type="secondary">{t('pages.aether.subtitle')}</Typography.Paragraph>
 
-        {statusQuery.isLoading ? (
-          <Spin />
-        ) : (
-          <Row gutter={16}>
-            <Col xs={24} lg={16}>
-              <Card>
-                <AetherEditor key={editorKey} initial={initial} />
-              </Card>
-            </Col>
-            <Col xs={24} lg={8}>
-              <AetherStatusCard status={loaded?.status ?? null} />
-            </Col>
-          </Row>
-        )}
-      </Layout.Content>
-    </Layout>
+            {statusQuery.isLoading ? (
+              <Spin />
+            ) : (
+              <Row gutter={16}>
+                <Col xs={24} lg={16}>
+                  <Card>
+                    <AetherEditor key={editorKey} initial={initial} />
+                  </Card>
+                </Col>
+                <Col xs={24} lg={8}>
+                  <AetherStatusCard status={loaded?.status ?? null} />
+                </Col>
+              </Row>
+            )}
+          </Layout.Content>
+        </Layout>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
