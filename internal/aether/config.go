@@ -9,6 +9,7 @@ package aether
 import (
 	"fmt"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -198,9 +199,15 @@ func (s Settings) Fingerprint() string {
 	return strconv.Itoa(s.Port()) + "|" + strings.Join(s.Args(), " ")
 }
 
-// BinaryPath is the Aether executable path in the panel's bin folder.
+// BinaryPath is the Aether executable's absolute path in the panel's bin folder.
+// It must be absolute: exec with a relative program name that has no slash of
+// its own searches PATH, not the bin folder, so "bin/aether" fails to launch.
 func BinaryPath() string {
-	return config.GetBinFolderPath() + "/" + BinaryName
+	p := config.GetBinFolderPath() + "/" + BinaryName
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 func isCountryCode(s string) bool {

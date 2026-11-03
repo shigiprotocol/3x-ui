@@ -1,6 +1,7 @@
 package aether
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -102,6 +103,15 @@ func TestNormalizedKeepsRealValues(t *testing.T) {
 	got := Settings{Enabled: true, SocksPort: 3000, Mode: ModeGool}.Normalized()
 	if got.SocksPort != 3000 || got.Mode != ModeGool {
 		t.Fatalf("Normalized changed real values: port=%d mode=%q", got.SocksPort, got.Mode)
+	}
+}
+
+// A relative program path with no slash makes exec search PATH instead of the
+// bin folder, so the core fails to launch ("fork/exec bin/aether: no such file
+// or directory"). BinaryPath must be absolute.
+func TestBinaryPathIsAbsolute(t *testing.T) {
+	if p := BinaryPath(); !filepath.IsAbs(p) {
+		t.Fatalf("BinaryPath() = %q, want an absolute path", p)
 	}
 }
 
