@@ -58,6 +58,10 @@ const defaultSettings: AetherSettings = {
   extraArgs: [],
 };
 
+// The settings payload carries an array (extraArgs); send it as JSON so the Go
+// handler binds it, not as the form encoding HttpUtil defaults to.
+const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
 async function fetchStatus(): Promise<AetherStatusView | null> {
   const msg = await HttpUtil.get<AetherStatusView>('/panel/api/aether/status', undefined, {
     silent: true,
@@ -76,14 +80,15 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.aether.root() });
 
   const saveMut = useMutation({
-    mutationFn: (payload: AetherSettings) => HttpUtil.post('/panel/api/aether/settings', payload),
+    mutationFn: (payload: AetherSettings) =>
+      HttpUtil.post('/panel/api/aether/settings', payload, JSON_HEADERS),
     onSuccess: (msg) => {
       if (msg?.success) invalidate();
     },
   });
 
   const restartMut = useMutation({
-    mutationFn: () => HttpUtil.post('/panel/api/aether/restart', {}),
+    mutationFn: () => HttpUtil.post('/panel/api/aether/restart', {}, JSON_HEADERS),
     onSuccess: (msg) => {
       if (msg?.success) invalidate();
     },
