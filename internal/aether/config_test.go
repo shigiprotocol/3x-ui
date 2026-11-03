@@ -39,10 +39,10 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 				Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3,
 				Psiphon: PsiphonChain, PsiphonRegion: "de", PsiphonCdnSets: "psiphon-akamai,vercel",
 			},
-			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--psiphon", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--psiphon", "--psiphon-bind", "127.0.0.1:2020", "--psiphon-region", "DE", "--psiphon-cdn-sets", "psiphon-akamai,vercel"},
 		},
 		{
-			name: "psiphon only still names the base protocol",
+			name: "psiphon only serves on the bind port, no psiphon-bind",
 			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Psiphon: PsiphonOnly},
 			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--psiphon-only"},
 		},
@@ -72,9 +72,9 @@ func TestArgsBuildsBindAndModeFlags(t *testing.T) {
 			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "--dual"},
 		},
 		{
-			name: "tor chain",
+			name: "tor chain pins the tor listener",
 			in:   Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque, Transport: TransportH3, Scan: ScanBalanced, Tor: TorChain},
-			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--tor"},
+			want: []string{"--bind", "127.0.0.1:2019", "--masque", "--h3", "--scan", "balanced", "-4", "--tor", "--tor-bind", "127.0.0.1:2021"},
 		},
 	}
 	for _, tt := range tests {
@@ -153,6 +153,37 @@ func TestBinaryPathIsAbsolute(t *testing.T) {
 	if p := BinaryPath(); !filepath.IsAbs(p) {
 		t.Fatalf("BinaryPath() = %q, want an absolute path", p)
 	}
+}
+
+// DialPort decides where the panel's outbound connects. With psiphon or tor
+// chained, dialing the bind port would exit at the bare tunnel (a WARP IP
+// geolocated to the user's country) instead of the psiphon/tor exit.
+func TestDialPortPicksTheCarrierListener(t *testing.T) {
+	base := Settings{Enabled: true, SocksPort: 2019, Mode: ModeMasque}
+	tests := []struct {
+		name string
+		in   Settings
+		want int
+	}{
+		{"plain tunnel dials bind", base, 2019},
+		{"psiphon chain dials psiphon-bind", with(base, func(s *Settings) { s.Psiphon = PsiphonChain }), 2020},
+		{"psiphon reverse dials psiphon-bind", with(base, func(s *Settings) { s.Psiphon = PsiphonReverse }), 2020},
+		{"psiphon only dials bind", with(base, func(s *Settings) { s.Psiphon = PsiphonOnly }), 2019},
+		{"tor chain dials tor-bind", with(base, func(s *Settings) { s.Tor = TorChain }), 2021},
+		{"tor only dials bind", with(base, func(s *Settings) { s.Tor = TorOnly }), 2019},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.in.DialPort(); got != tt.want {
+				t.Fatalf("DialPort() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func with(s Settings, f func(*Settings)) Settings {
+	f(&s)
+	return s
 }
 
 func TestPortAppliesDefault(t *testing.T) {

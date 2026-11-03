@@ -83,7 +83,7 @@ func injectAetherEgress(cfg *xray.Config, inbounds []*model.Inbound) {
 		return
 	}
 
-	port := aether.GetManager().Port()
+	port := aether.GetManager().DialPort()
 
 	if !outboundTagExists(cfg.OutboundConfigs, AetherOutboundTag) {
 		if err := appendAetherOutbound(cfg, port); err != nil {

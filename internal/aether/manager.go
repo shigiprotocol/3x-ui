@@ -84,6 +84,14 @@ func (m *Manager) Port() int {
 	return m.settings.Port()
 }
 
+// DialPort is the loopback port the panel's outbound should connect to for the
+// current settings (psiphon/tor listener when chained, else the bind port).
+func (m *Manager) DialPort() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.settings.DialPort()
+}
+
 // Apply reconciles the running process with desired settings: starts it when it
 // should run and does not, stops it when it should not, and restarts it when the
 // arguments changed. A no-op when already matching, so it is safe to call on
@@ -176,9 +184,11 @@ func (m *Manager) startLocked(s Settings) error {
 		}
 	}()
 
-	logger.Infof("aether: started on %s:%d (mode=%s psiphon=%s)", Loopback, s.Port(), nonEmpty(string(s.Mode), "masque"), nonEmpty(string(s.Psiphon), "off"))
+	logger.Infof("aether: started on %s:%d (mode=%s psiphon=%s tor=%s)", Loopback, s.Port(), nonEmpty(string(s.Mode), "masque"), nonEmpty(string(s.Psiphon), "off"), nonEmpty(string(s.Tor), "off"))
 
-	port := s.Port()
+	// Probe the port the panel actually dials, so readiness reflects the carrier
+	// that reaches the internet (psiphon/tor listener when chained).
+	port := s.DialPort()
 	go func() {
 		if waitForListener(port, readyTimeout) {
 			m.mu.Lock()

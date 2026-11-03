@@ -247,12 +247,43 @@ func DefaultSettings() Settings {
 	}
 }
 
-// Port is the effective SOCKS port, applying the default.
+// Port is the effective SOCKS port the core binds (--bind): the plain tunnel, or
+// plain psiphon/tor in the -only modes.
 func (s Settings) Port() int {
 	if s.SocksPort <= 0 {
 		return DefaultSocksPort
 	}
 	return s.SocksPort
+}
+
+// auxPort derives a second loopback port from the base, staying in range.
+func auxPort(base, offset int) int {
+	p := base + offset
+	if p > 65535 {
+		p = base - offset
+	}
+	return p
+}
+
+// psiphonBindPort is where the chained/reverse psiphon proxy listens.
+func (s Settings) psiphonBindPort() int { return auxPort(s.Port(), 1) }
+
+// torBindPort is where the chained/reverse tor proxy listens.
+func (s Settings) torBindPort() int { return auxPort(s.Port(), 2) }
+
+// DialPort is the loopback port the panel's outbound must connect to so traffic
+// leaves through the carrier that actually reaches the internet. With psiphon or
+// tor chained/reversed, that is their own listener, not --bind (which would exit
+// at the bare tunnel, e.g. a WARP IP geolocated to the user's country).
+func (s Settings) DialPort() int {
+	switch {
+	case s.Psiphon == PsiphonChain || s.Psiphon == PsiphonReverse:
+		return s.psiphonBindPort()
+	case s.Tor == TorChain || s.Tor == TorReverse:
+		return s.torBindPort()
+	default:
+		return s.Port()
+	}
 }
 
 // Normalized fills zero-value fields the UI would otherwise show as 0 / blank
@@ -387,6 +418,11 @@ func (s Settings) Args() []string {
 		args = append(args, "--psiphon-only")
 	}
 	if s.Psiphon.enabled() {
+		// Pin the psiphon listener so the panel's outbound can dial the port that
+		// actually leaves through psiphon (DialPort), not the bare tunnel.
+		if s.Psiphon == PsiphonChain || s.Psiphon == PsiphonReverse {
+			args = append(args, "--psiphon-bind", net.JoinHostPort(Loopback, strconv.Itoa(s.psiphonBindPort())))
+		}
 		if s.PsiphonRegion != "" {
 			args = append(args, "--psiphon-region", strings.ToUpper(s.PsiphonRegion))
 		}
@@ -402,6 +438,9 @@ func (s Settings) Args() []string {
 		args = append(args, "--tor-reverse")
 	case TorOnly:
 		args = append(args, "--tor-only")
+	}
+	if s.Tor == TorChain || s.Tor == TorReverse {
+		args = append(args, "--tor-bind", net.JoinHostPort(Loopback, strconv.Itoa(s.torBindPort())))
 	}
 
 	args = append(args, s.ExtraArgs...)
