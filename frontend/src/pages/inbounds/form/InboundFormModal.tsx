@@ -244,9 +244,15 @@ export default function InboundFormModal({
   const selectableNodes = (availableNodes || []).filter((n) => n.enable);
   const protocol = (useWatch({ control, name: 'protocol' }) ?? '') as string;
   const isNodeEligible = !!NODE_ELIGIBLE_PROTOCOLS[protocol];
-  // Aether egress applies to the proxy protocols whose settings carry the flag.
+  // Aether egress applies to the protocols whose settings carry the flag.
   const aetherEligible = (
-    [Protocols.VLESS, Protocols.VMESS, Protocols.TROJAN, Protocols.SHADOWSOCKS] as string[]
+    [
+      Protocols.VLESS,
+      Protocols.VMESS,
+      Protocols.TROJAN,
+      Protocols.SHADOWSOCKS,
+      Protocols.WIREGUARD,
+    ] as string[]
   ).includes(protocol);
   /*
    * The `node` share-address strategy only means something when the inbound can

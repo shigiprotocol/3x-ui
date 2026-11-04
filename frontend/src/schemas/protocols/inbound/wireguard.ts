@@ -66,5 +66,8 @@ export const WireguardInboundSettingsSchema = z.object({
   // fall back to 10.0.0.0/24 server-side).
   subnetIp: z.string().default(''),
   subnetCidr: optionalClearedInt(z.number().int().min(1).max(32)),
+  // When set, the panel egresses this inbound's traffic through the Aether core
+  // (a socks outbound + routing rule injected at runtime). See internal/aether.
+  routeThroughAether: z.boolean().optional(),
 });
 export type WireguardInboundSettings = z.infer<typeof WireguardInboundSettingsSchema>;
