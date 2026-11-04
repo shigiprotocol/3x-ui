@@ -6,8 +6,11 @@ import { DBInbound } from '@/models/dbinbound';
 import { ThemeProvider } from '@/hooks/useTheme';
 import { HttpUtil } from '@/utils';
 import { Protocols } from '@/schemas/primitives';
+import { QueryClientProvider } from '@tanstack/react-query';
+
 import {
   renderWithProviders,
+  makeTestQueryClient,
   fieldLabels,
   listSelectOptions,
   chooseSelectOption,
@@ -242,19 +245,22 @@ describe('InboundFormModal', () => {
     };
     const strategyItem = (title: string) =>
       document.querySelector(`.ant-select-content[title="${title}"]`);
+    const queryClient = makeTestQueryClient();
     const modal = (nodes: never[], fetched: boolean) => (
-      <ThemeProvider>
-        <InboundFormModal
-          open
-          mode="edit"
-          dbInbound={buildInbound()}
-          dbInbounds={[]}
-          availableNodes={nodes}
-          availableNodesFetched={fetched}
-          onClose={() => {}}
-          onSaved={() => {}}
-        />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <InboundFormModal
+            open
+            mode="edit"
+            dbInbound={buildInbound()}
+            dbInbounds={[]}
+            availableNodes={nodes}
+            availableNodesFetched={fetched}
+            onClose={() => {}}
+            onSaved={() => {}}
+          />
+        </ThemeProvider>
+      </QueryClientProvider>
     );
 
     // Baseline: nodes already loaded, so the node option is offered and selected.
