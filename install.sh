@@ -1664,15 +1664,21 @@ _install_xui_service_unit() {
     return 0
 }
 
-# resolve_latest_tag prints the latest stable release tag. It prefers the web
-# releases/latest redirect, which is not subject to the unauthenticated API's
-# 60 req/h-per-IP limit that trips shared CI/CGNAT addresses (the install then
-# fails with "Failed to fetch x-ui version"), and falls back to the API.
+# resolve_latest_tag prints the newest release tag, preferring sources that dodge
+# the API's 60 req/h-per-IP limit that trips shared CI/CGNAT addresses.
 resolve_latest_tag() {
     local url tag
     url=$(curl -sSLI -o /dev/null -w '%{url_effective}' --retry 5 --retry-delay 3 --connect-timeout 15 --max-time 60 "https://github.com/${GH_REPO}/releases/latest" 2>/dev/null)
     tag=${url##*/tag/}
     if [[ "$tag" != "$url" && -n "$tag" && "$tag" != "latest" ]]; then
+        echo "$tag"
+        return 0
+    fi
+    # No "latest" published (e.g. every release flagged pre-release, as a fork may
+    # do): the atom feed lists releases newest-first and is not rate-limited per IP.
+    tag=$(curl -sL --retry 5 --retry-delay 3 --connect-timeout 15 --max-time 60 "https://github.com/${GH_REPO}/releases.atom" \
+        | grep -oE 'releases/tag/[^"<]+' | sed 's#releases/tag/##' | grep -v '^dev-latest$' | head -n1)
+    if [[ -n "$tag" ]]; then
         echo "$tag"
         return 0
     fi
