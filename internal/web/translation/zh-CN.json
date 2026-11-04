@@ -2516,10 +2516,6 @@
     "aether": {
       "title": "Aether Core",
       "subtitle": "Run the Aether censorship-circumvention core and route inbounds through it.",
-      "enable": "Enable Aether core",
-      "enableHelp": "The core runs only when enabled and at least one inbound routes through it.",
-      "socksPort": "SOCKS port",
-      "socksPortHelp": "Loopback SOCKS5 port the core listens on. Leave 0 for the default.",
       "mode": "Tunnel mode",
       "modeMasque": "MASQUE (default)",
       "modeGool": "WireGuard over MASQUE (gool)",
@@ -2535,13 +2531,10 @@
       "psiphonCdnSetsHelp": "Comma-separated edge lists, e.g. psiphon-akamai,vercel.",
       "extraArgs": "Extra arguments",
       "extraArgsHelp": "Advanced: extra command-line flags, one per line.",
-      "status": "Status",
       "statusRunning": "Running",
       "statusStopped": "Stopped",
       "statusReady": "Ready",
       "statusNotReady": "Starting",
-      "port": "Port",
-      "pid": "PID",
       "save": "Save",
       "restart": "Restart core",
       "toasts": {
@@ -2585,7 +2578,11 @@
       "torChain": "Chain (aether then tor)",
       "torReverse": "Reverse (tunnel through tor)",
       "torOnly": "Tor only (no tunnel)",
-      "psiphonTorExclusive": "Psiphon and Tor cannot both run inside the tunnel; turn one off."
+      "psiphonTorExclusive": "Psiphon and Tor cannot both run inside the tunnel; turn one off.",
+      "addProfile": "Add profile",
+      "noProfiles": "No profiles yet. Add one to run an Aether core.",
+      "profileName": "Profile name",
+      "enable": "Enabled"
     }
   },
   "tgbot": {

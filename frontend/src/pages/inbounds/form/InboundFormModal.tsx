@@ -29,6 +29,7 @@ import {
   type InboundFormValues,
 } from '@/schemas/forms/inbound-form';
 import { FormField, rhfZodValidate } from '@/components/form/rhf';
+import { useAetherProfiles } from '@/api/queries/useAetherProfiles';
 import { Protocols, TRAFFIC_RESETS } from '@/schemas/primitives';
 import { SockoptStreamSettingsSchema } from '@/schemas/protocols/stream/sockopt';
 import { HysteriaStreamSettingsSchema } from '@/schemas/protocols/stream/hysteria';
@@ -254,6 +255,7 @@ export default function InboundFormModal({
       Protocols.WIREGUARD,
     ] as string[]
   ).includes(protocol);
+  const aetherProfiles = useAetherProfiles();
   /*
    * The `node` share-address strategy only means something when the inbound can
    * actually live on a node — otherwise the node address it would resolve to is
@@ -788,14 +790,18 @@ export default function InboundFormModal({
           {t('pages.inbounds.leaveBlankToNeverExpire')}
         </span>
       </Form.Item>
-      {aetherEligible && (
+      {aetherEligible && aetherProfiles.length > 0 && (
         <FormField
-          name={['settings', 'routeThroughAether']}
-          valueProp="checked"
+          name={['settings', 'aetherProfile']}
           label={t('pages.aether.routeThroughAether')}
           tooltip={t('pages.aether.routeThroughAetherHelp')}
         >
-          <Switch id="inbound-route-through-aether" />
+          <Select
+            id="inbound-aether-profile"
+            allowClear
+            placeholder={t('none')}
+            options={aetherProfiles.map((p) => ({ value: p.id, label: p.name }))}
+          />
         </FormField>
       )}
     </>

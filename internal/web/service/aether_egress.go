@@ -11,84 +11,95 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 )
 
-// AetherOutboundTag is the tag of the socks outbound injected into the generated
-// config when any inbound opts into Aether. Every opted-in inbound routes to it,
-// and it dials the one Aether core process the panel runs on loopback — the same
-// one-core design PattNG uses on the client.
-const AetherOutboundTag = "aether-out"
-
-// applyAetherCore reconciles the Aether child process with the saved settings.
-// It starts the core when at least one enabled inbound opts in and the feature is
-// enabled, and stops it otherwise, so the process is not left running when no
-// inbound uses it. A start failure is logged, not fatal: the generated config is
-// still valid and the core can come up on a later rebuild.
-func (s *XrayService) applyAetherCore(inbounds []*model.Inbound) {
-	cfg, err := s.settingService.GetAetherSettings()
-	if err != nil {
-		logger.Warning("aether: read settings failed:", err)
-		return
-	}
-
-	anyOptedIn := false
-	for _, inbound := range inbounds {
-		if inbound != nil && inbound.Enable && inbound.NodeID == nil && inbound.Tag != "" && inboundRoutesThroughAether(inbound) {
-			anyOptedIn = true
-			break
-		}
-	}
-	// Run the core only when it is both enabled and actually used.
-	cfg.Enabled = cfg.Enabled && anyOptedIn
-
-	if err := aether.GetManager().Apply(cfg); err != nil {
-		logger.Warning("aether: apply core settings failed:", err)
-	}
-}
-
-// inboundRoutesThroughAether reports whether an inbound asked for its traffic to
-// egress through Aether. The opt-in is a boolean in the inbound's settings JSON,
-// so no schema migration is needed, matching how mtproto stores routeThroughXray.
-func inboundRoutesThroughAether(inbound *model.Inbound) bool {
+// inboundAetherChoice reads how an inbound opts into Aether: a profile ID in
+// aetherProfile, or the legacy routeThroughAether boolean (which means "the first
+// profile"). Returns the chosen profile ID resolved against the profile list, or
+// "" when the inbound does not route through Aether.
+func inboundAetherChoice(inbound *model.Inbound, profiles []aether.Profile) string {
 	var parsed struct {
-		RouteThroughAether bool `json:"routeThroughAether"`
+		RouteThroughAether bool   `json:"routeThroughAether"`
+		AetherProfile      string `json:"aetherProfile"`
 	}
 	if err := json.Unmarshal([]byte(inbound.Settings), &parsed); err != nil {
-		return false
+		return ""
 	}
-	return parsed.RouteThroughAether
+	if parsed.AetherProfile != "" {
+		for _, p := range profiles {
+			if p.ID == parsed.AetherProfile {
+				return p.ID
+			}
+		}
+		return ""
+	}
+	if parsed.RouteThroughAether && len(profiles) > 0 {
+		return profiles[0].ID
+	}
+	return ""
 }
 
-// injectAetherEgress wires every opted-in inbound through the Aether core. It is
-// a no-op unless at least one enabled, local inbound opts in. When some do, it
-// appends one socks outbound dialing the Aether manager's loopback SOCKS port and
-// prepends a routing rule per inbound sending that inbound's traffic to it.
-//
-// The generated state is additive and hot-appliable; it never touches the stored
-// template. If the Aether core is not running the outbound still resolves (socks
-// dial to a dead port simply fails per-connection), so routing stays valid and
-// the core can come up later without a config rebuild.
-func injectAetherEgress(cfg *xray.Config, inbounds []*model.Inbound) {
-	var opted []*model.Inbound
+// applyAetherCores reconciles the Aether child processes with the saved profiles.
+// A profile runs only when it is enabled AND at least one inbound routes through
+// it, so an unused profile is not left running. Failures are logged, not fatal.
+func (s *XrayService) applyAetherCores(inbounds []*model.Inbound, profiles []aether.Profile) {
+	used := make(map[string]bool)
 	for _, inbound := range inbounds {
-		if inbound == nil || !inbound.Enable || inbound.NodeID != nil {
+		if inbound == nil || !inbound.Enable || inbound.NodeID != nil || inbound.Tag == "" {
 			continue
 		}
-		if inbound.Tag == "" {
-			continue
-		}
-		if inboundRoutesThroughAether(inbound) {
-			opted = append(opted, inbound)
+		if id := inboundAetherChoice(inbound, profiles); id != "" {
+			used[id] = true
 		}
 	}
-	if len(opted) == 0 {
+
+	resolved := aether.Resolve(profiles)
+	for i := range resolved {
+		resolved[i].Settings.Enabled = resolved[i].Settings.Enabled && used[resolved[i].ID]
+	}
+	aether.GetManager().Reconcile(resolved)
+}
+
+// injectAetherEgress wires every opted-in inbound through its chosen Aether
+// profile: one socks outbound per used profile (dialing that profile's core) and
+// a routing rule per inbound to its profile's outbound. Additive and
+// hot-appliable; it never touches the stored template.
+func injectAetherEgress(cfg *xray.Config, inbounds []*model.Inbound, profiles []aether.Profile) {
+	resolved := aether.Resolve(profiles)
+	byID := make(map[string]aether.Profile, len(resolved))
+	for _, p := range resolved {
+		byID[p.ID] = p
+	}
+
+	type routed struct {
+		inboundTag string
+		profileID  string
+	}
+	var routes []routed
+	usedProfiles := make(map[string]bool)
+	for _, inbound := range inbounds {
+		if inbound == nil || !inbound.Enable || inbound.NodeID != nil || inbound.Tag == "" {
+			continue
+		}
+		id := inboundAetherChoice(inbound, profiles)
+		if id == "" {
+			continue
+		}
+		if _, ok := byID[id]; !ok {
+			continue
+		}
+		routes = append(routes, routed{inboundTag: inbound.Tag, profileID: id})
+		usedProfiles[id] = true
+	}
+	if len(routes) == 0 {
 		return
 	}
 
-	port := aether.GetManager().DialPort()
-
-	if !outboundTagExists(cfg.OutboundConfigs, AetherOutboundTag) {
-		if err := appendAetherOutbound(cfg, port); err != nil {
-			logger.Warning("aether egress: failed to append outbound, skipping injection:", err)
-			return
+	for id := range usedProfiles {
+		tag := aether.OutboundTag(id)
+		if outboundTagExists(cfg.OutboundConfigs, tag) {
+			continue
+		}
+		if err := appendAetherOutbound(cfg, tag, byID[id].Settings.DialPort()); err != nil {
+			logger.Warning("aether egress: failed to append outbound for profile", id, ":", err)
 		}
 	}
 
@@ -100,12 +111,12 @@ func injectAetherEgress(cfg *xray.Config, inbounds []*model.Inbound) {
 		}
 	}
 	rules, _ := routing["rules"].([]any)
-	prepended := make([]any, 0, len(opted))
-	for _, inbound := range opted {
+	prepended := make([]any, 0, len(routes))
+	for _, r := range routes {
 		prepended = append(prepended, map[string]any{
 			"type":        "field",
-			"inboundTag":  []any{inbound.Tag},
-			"outboundTag": AetherOutboundTag,
+			"inboundTag":  []any{r.inboundTag},
+			"outboundTag": aether.OutboundTag(r.profileID),
 		})
 	}
 	routing["rules"] = append(prepended, rules...)
@@ -117,17 +128,14 @@ func injectAetherEgress(cfg *xray.Config, inbounds []*model.Inbound) {
 	cfg.RouterConfig = json_util.RawMessage(newRouting)
 }
 
-// appendAetherOutbound adds the single socks outbound that dials the Aether core.
-func appendAetherOutbound(cfg *xray.Config, port int) error {
+// appendAetherOutbound adds a socks outbound with the given tag dialing a core.
+func appendAetherOutbound(cfg *xray.Config, tag string, port int) error {
 	outbound := map[string]any{
-		"tag":      AetherOutboundTag,
+		"tag":      tag,
 		"protocol": "socks",
 		"settings": map[string]any{
 			"servers": []any{
-				map[string]any{
-					"address": aether.Loopback,
-					"port":    port,
-				},
+				map[string]any{"address": aether.Loopback, "port": port},
 			},
 		},
 	}

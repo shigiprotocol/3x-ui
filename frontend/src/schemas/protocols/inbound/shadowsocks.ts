@@ -38,5 +38,6 @@ export const ShadowsocksInboundSettingsSchema = z.object({
   // When set, the panel egresses this inbound's traffic through the Aether core
   // (a socks outbound + routing rule injected at runtime). See internal/aether.
   routeThroughAether: z.boolean().optional(),
+  aetherProfile: z.string().optional(),
 });
 export type ShadowsocksInboundSettings = z.infer<typeof ShadowsocksInboundSettingsSchema>;

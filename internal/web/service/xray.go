@@ -443,13 +443,15 @@ func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
 		injectMtprotoEgress(xrayConfig, inbound)
 	}
 
-	// Route opted-in inbounds through the Aether core: one socks outbound
-	// dialing Aether's loopback SOCKS listener, plus a rule per inbound. Aether
-	// has no server-side listener, so this is how an inbound egresses through it.
-	// Reconcile the core process with the saved settings first, so the outbound
-	// the injection emits points at a listener that is (coming) up.
-	s.applyAetherCore(inbounds)
-	injectAetherEgress(xrayConfig, inbounds)
+	// Route opted-in inbounds through their chosen Aether profile: one socks
+	// outbound per used profile plus a rule per inbound. Reconcile the core
+	// processes first, so the outbounds point at listeners that are (coming) up.
+	if aetherProfiles, aErr := s.settingService.GetAetherProfiles(); aErr != nil {
+		logger.Warning("aether: read profiles failed:", aErr)
+	} else {
+		s.applyAetherCores(inbounds, aetherProfiles)
+		injectAetherEgress(xrayConfig, inbounds, aetherProfiles)
+	}
 
 	// Every AmneziaWG inbound is embedded (internal/amneziawgnet: amneziawg-go
 	// over a gVisor netstack, no kernel module) and relays every peer's

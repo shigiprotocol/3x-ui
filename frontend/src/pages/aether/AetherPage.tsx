@@ -8,7 +8,6 @@ import {
   ConfigProvider,
   Form,
   Input,
-  InputNumber,
   Layout,
   Row,
   Select,
@@ -18,6 +17,7 @@ import {
   Tag,
   Typography,
 } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 
 import AppSidebar from '@/layouts/AppSidebar';
 import { useTheme } from '@/hooks/useTheme';
@@ -48,22 +48,31 @@ interface AetherSettings {
   extraArgs: string[];
 }
 
-interface AetherStatus {
+interface AetherProfile {
+  id: string;
+  name: string;
+  settings: AetherSettings;
+}
+
+interface ProfileStatus {
+  id: string;
+  name: string;
   running: boolean;
   ready: boolean;
   port: number;
+  dialPort: number;
   pid: number;
   lastErr: string;
 }
 
-interface AetherStatusView {
-  settings: AetherSettings;
-  status: AetherStatus;
+interface AetherView {
+  profiles: AetherProfile[];
+  statuses: ProfileStatus[];
 }
 
 const defaultSettings: AetherSettings = {
-  enabled: false,
-  socksPort: 2019,
+  enabled: true,
+  socksPort: 0,
   mode: 'masque',
   transport: 'h3',
   scan: 'balanced',
@@ -77,83 +86,59 @@ const defaultSettings: AetherSettings = {
   extraArgs: [],
 };
 
-// The settings payload carries an array (extraArgs); send it as JSON so the Go
-// handler binds it, not as the form encoding HttpUtil defaults to.
+// The settings payload carries arrays, so send JSON (HttpUtil defaults to form).
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
-async function fetchStatus(): Promise<AetherStatusView | null> {
-  const msg = await HttpUtil.get<AetherStatusView>('/panel/api/aether/status', undefined, {
-    silent: true,
-  });
-  return msg.success && msg.obj ? msg.obj : null;
+function newProfileId(): string {
+  try {
+    return crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+  } catch {
+    return Math.random().toString(36).slice(2, 10);
+  }
 }
 
-// The editor seeds its local state from initial once, at mount. The parent keys
-// it on the loaded data so a fresh server payload remounts it with new defaults
-// — no effect, so no synchronous setState-in-effect.
-function AetherEditor({ initial }: { initial: AetherSettings }) {
+function normalizeProfile(p: AetherProfile): AetherProfile {
+  return {
+    id: p.id || newProfileId(),
+    name: p.name || 'Aether',
+    settings: { ...defaultSettings, ...p.settings, extraArgs: p.settings?.extraArgs ?? [] },
+  };
+}
+
+async function fetchView(): Promise<AetherView> {
+  const msg = await HttpUtil.get<AetherView>('/panel/api/aether/status', undefined, {
+    silent: true,
+  });
+  if (msg.success && msg.obj) {
+    return {
+      profiles: (msg.obj.profiles ?? []).map(normalizeProfile),
+      statuses: msg.obj.statuses ?? [],
+    };
+  }
+  return { profiles: [], statuses: [] };
+}
+
+function ProfileFields({
+  value,
+  onChange,
+}: {
+  value: AetherSettings;
+  onChange: (next: AetherSettings) => void;
+}) {
   const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const [settings, setSettings] = useState<AetherSettings>(initial);
+  const set = (patch: Partial<AetherSettings>) => onChange({ ...value, ...patch });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.aether.root() });
-
-  const saveMut = useMutation({
-    mutationFn: (payload: AetherSettings) =>
-      HttpUtil.post('/panel/api/aether/settings', payload, JSON_HEADERS),
-    onSuccess: (msg) => {
-      if (msg?.success) invalidate();
-    },
-  });
-
-  const restartMut = useMutation({
-    mutationFn: () => HttpUtil.post('/panel/api/aether/restart', {}, JSON_HEADERS),
-    onSuccess: (msg) => {
-      if (msg?.success) invalidate();
-    },
-  });
-
-  const busy = saveMut.isPending || restartMut.isPending;
-  const psiphonActive = settings.psiphon !== '';
-  const torActive = settings.tor !== '';
-  const masqueBased =
-    settings.mode === 'masque' || settings.mode === 'gool' || settings.mode === 'mim';
+  const psiphonActive = value.psiphon !== '';
+  const torActive = value.tor !== '';
+  const masqueBased = value.mode === 'masque' || value.mode === 'gool' || value.mode === 'mim';
 
   return (
-    <Form layout="vertical">
-      <Form.Item
-        htmlFor="aether-enabled"
-        label={t('pages.aether.enable')}
-        help={t('pages.aether.enableHelp')}
-      >
-        <Switch
-          id="aether-enabled"
-          checked={settings.enabled}
-          onChange={(enabled) => setSettings((s) => ({ ...s, enabled }))}
-        />
-      </Form.Item>
-
-      <Form.Item
-        htmlFor="aether-socks-port"
-        label={t('pages.aether.socksPort')}
-        help={t('pages.aether.socksPortHelp')}
-      >
-        <InputNumber
-          id="aether-socks-port"
-          min={0}
-          max={65535}
-          value={settings.socksPort}
-          onChange={(socksPort) =>
-            setSettings((s) => ({ ...s, socksPort: Number(socksPort) || 0 }))
-          }
-        />
-      </Form.Item>
-
-      <Form.Item htmlFor="aether-mode" label={t('pages.aether.mode')}>
+    <>
+      <Form.Item label={t('pages.aether.mode')}>
         <Select<AetherMode>
-          id="aether-mode"
-          value={settings.mode}
-          onChange={(mode) => setSettings((s) => ({ ...s, mode }))}
+          aria-label={t('pages.aether.mode')}
+          value={value.mode}
+          onChange={(mode) => set({ mode })}
           options={[
             { value: 'masque', label: t('pages.aether.modeMasque') },
             { value: 'wg', label: t('pages.aether.modeWg') },
@@ -166,15 +151,11 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
 
       {masqueBased && (
         <>
-          <Form.Item
-            htmlFor="aether-transport"
-            label={t('pages.aether.transport')}
-            help={t('pages.aether.transportHelp')}
-          >
+          <Form.Item label={t('pages.aether.transport')} help={t('pages.aether.transportHelp')}>
             <Select<AetherTransport>
-              id="aether-transport"
-              value={settings.transport}
-              onChange={(transport) => setSettings((s) => ({ ...s, transport }))}
+              aria-label={t('pages.aether.transport')}
+              value={value.transport}
+              onChange={(transport) => set({ transport })}
               options={[
                 { value: 'h3', label: t('pages.aether.transportH3') },
                 { value: 'h2', label: t('pages.aether.transportH2') },
@@ -182,31 +163,23 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
             />
           </Form.Item>
 
-          {settings.transport === 'h2' && (
-            <Form.Item
-              htmlFor="aether-fragment"
-              label={t('pages.aether.fragment')}
-              help={t('pages.aether.fragmentHelp')}
-            >
+          {value.transport === 'h2' && (
+            <Form.Item label={t('pages.aether.fragment')} help={t('pages.aether.fragmentHelp')}>
               <Switch
-                id="aether-fragment"
-                checked={settings.fragment}
-                onChange={(fragment) => setSettings((s) => ({ ...s, fragment }))}
+                aria-label={t('pages.aether.fragment')}
+                checked={value.fragment}
+                onChange={(fragment) => set({ fragment })}
               />
             </Form.Item>
           )}
         </>
       )}
 
-      <Form.Item
-        htmlFor="aether-scan"
-        label={t('pages.aether.scan')}
-        help={t('pages.aether.scanHelp')}
-      >
+      <Form.Item label={t('pages.aether.scan')} help={t('pages.aether.scanHelp')}>
         <Select<ScanMode>
-          id="aether-scan"
-          value={settings.scan}
-          onChange={(scan) => setSettings((s) => ({ ...s, scan }))}
+          aria-label={t('pages.aether.scan')}
+          value={value.scan}
+          onChange={(scan) => set({ scan })}
           options={[
             { value: 'turbo', label: t('pages.aether.scanTurbo') },
             { value: 'balanced', label: t('pages.aether.scanBalanced') },
@@ -217,11 +190,11 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
         />
       </Form.Item>
 
-      <Form.Item htmlFor="aether-ip" label={t('pages.aether.ipVersion')}>
+      <Form.Item label={t('pages.aether.ipVersion')}>
         <Select<IPVersion>
-          id="aether-ip"
-          value={settings.ipVersion}
-          onChange={(ipVersion) => setSettings((s) => ({ ...s, ipVersion }))}
+          aria-label={t('pages.aether.ipVersion')}
+          value={value.ipVersion}
+          onChange={(ipVersion) => set({ ipVersion })}
           options={[
             { value: 'v4', label: t('pages.aether.ipv4') },
             { value: 'v6', label: t('pages.aether.ipv6') },
@@ -230,15 +203,11 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
         />
       </Form.Item>
 
-      <Form.Item
-        htmlFor="aether-noize"
-        label={t('pages.aether.obfuscation')}
-        help={t('pages.aether.obfuscationHelp')}
-      >
+      <Form.Item label={t('pages.aether.obfuscation')} help={t('pages.aether.obfuscationHelp')}>
         <Select<Obfuscation>
-          id="aether-noize"
-          value={settings.obfuscation}
-          onChange={(obfuscation) => setSettings((s) => ({ ...s, obfuscation }))}
+          aria-label={t('pages.aether.obfuscation')}
+          value={value.obfuscation}
+          onChange={(obfuscation) => set({ obfuscation })}
           options={[
             { value: '', label: t('pages.aether.obfuscationDefault') },
             { value: 'off', label: t('pages.aether.obfuscationOff') },
@@ -252,15 +221,14 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
       </Form.Item>
 
       <Form.Item
-        htmlFor="aether-psiphon"
         label={t('pages.aether.psiphon')}
         help={torActive ? t('pages.aether.psiphonTorExclusive') : undefined}
       >
         <Select<PsiphonMode>
-          id="aether-psiphon"
-          value={settings.psiphon}
+          aria-label={t('pages.aether.psiphon')}
+          value={value.psiphon}
           disabled={torActive}
-          onChange={(psiphon) => setSettings((s) => ({ ...s, psiphon }))}
+          onChange={(psiphon) => set({ psiphon })}
           options={[
             { value: '', label: t('pages.aether.psiphonOff') },
             { value: 'chain', label: t('pages.aether.psiphonChain') },
@@ -273,43 +241,38 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
       {psiphonActive && (
         <>
           <Form.Item
-            htmlFor="aether-psiphon-region"
             label={t('pages.aether.psiphonRegion')}
             help={t('pages.aether.psiphonRegionHelp')}
           >
             <Input
-              id="aether-psiphon-region"
+              aria-label={t('pages.aether.psiphonRegion')}
               maxLength={2}
-              value={settings.psiphonRegion}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, psiphonRegion: e.target.value.toUpperCase() }))
-              }
+              value={value.psiphonRegion}
+              onChange={(e) => set({ psiphonRegion: e.target.value.toUpperCase() })}
             />
           </Form.Item>
           <Form.Item
-            htmlFor="aether-psiphon-cdn-sets"
             label={t('pages.aether.psiphonCdnSets')}
             help={t('pages.aether.psiphonCdnSetsHelp')}
           >
             <Input
-              id="aether-psiphon-cdn-sets"
-              value={settings.psiphonCdnSets}
-              onChange={(e) => setSettings((s) => ({ ...s, psiphonCdnSets: e.target.value }))}
+              aria-label={t('pages.aether.psiphonCdnSets')}
+              value={value.psiphonCdnSets}
+              onChange={(e) => set({ psiphonCdnSets: e.target.value })}
             />
           </Form.Item>
         </>
       )}
 
       <Form.Item
-        htmlFor="aether-tor"
         label={t('pages.aether.tor')}
         help={psiphonActive ? t('pages.aether.psiphonTorExclusive') : t('pages.aether.torHelp')}
       >
         <Select<TorMode>
-          id="aether-tor"
-          value={settings.tor}
+          aria-label={t('pages.aether.tor')}
+          value={value.tor}
           disabled={psiphonActive}
-          onChange={(tor) => setSettings((s) => ({ ...s, tor }))}
+          onChange={(tor) => set({ tor })}
           options={[
             { value: '', label: t('pages.aether.torOff') },
             { value: 'chain', label: t('pages.aether.torChain') },
@@ -319,95 +282,158 @@ function AetherEditor({ initial }: { initial: AetherSettings }) {
         />
       </Form.Item>
 
-      <Form.Item
-        htmlFor="aether-extra-args"
-        label={t('pages.aether.extraArgs')}
-        help={t('pages.aether.extraArgsHelp')}
-      >
+      <Form.Item label={t('pages.aether.extraArgs')} help={t('pages.aether.extraArgsHelp')}>
         <Input.TextArea
-          id="aether-extra-args"
-          rows={3}
-          value={(settings.extraArgs ?? []).join('\n')}
+          aria-label={t('pages.aether.extraArgs')}
+          rows={2}
+          value={(value.extraArgs ?? []).join('\n')}
           onChange={(e) =>
-            setSettings((s) => ({
-              ...s,
+            set({
               extraArgs: e.target.value
                 .split('\n')
                 .map((line) => line.trim())
                 .filter((line) => line.length > 0),
-            }))
+            })
           }
         />
       </Form.Item>
+    </>
+  );
+}
 
-      <Space>
+function StatusBadge({ status }: { status: ProfileStatus | undefined }) {
+  const { t } = useTranslation();
+  if (!status || !status.running) {
+    return <Tag>{t('pages.aether.statusStopped')}</Tag>;
+  }
+  return (
+    <Space size="small">
+      <Tag color="green">{t('pages.aether.statusRunning')}</Tag>
+      {status.ready ? (
+        <Tag color="blue">{t('pages.aether.statusReady')}</Tag>
+      ) : (
+        <Tag color="orange">{t('pages.aether.statusNotReady')}</Tag>
+      )}
+      {status.lastErr ? <Typography.Text type="danger">{status.lastErr}</Typography.Text> : null}
+    </Space>
+  );
+}
+
+function AetherManager({
+  initial,
+  statuses,
+}: {
+  initial: AetherProfile[];
+  statuses: ProfileStatus[];
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [profiles, setProfiles] = useState<AetherProfile[]>(initial);
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: keys.aether.root() });
+
+  const saveMut = useMutation({
+    mutationFn: (payload: AetherProfile[]) =>
+      HttpUtil.post('/panel/api/aether/settings', { profiles: payload }, JSON_HEADERS),
+    onSuccess: (msg) => {
+      if (msg?.success) invalidate();
+    },
+  });
+  const restartMut = useMutation({
+    mutationFn: () => HttpUtil.post('/panel/api/aether/restart', {}, JSON_HEADERS),
+    onSuccess: (msg) => {
+      if (msg?.success) invalidate();
+    },
+  });
+  const busy = saveMut.isPending || restartMut.isPending;
+
+  const statusById = new Map(statuses.map((s) => [s.id, s]));
+  const update = (id: string, patch: Partial<AetherProfile>) =>
+    setProfiles((list) => list.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const remove = (id: string) => setProfiles((list) => list.filter((p) => p.id !== id));
+  const add = () =>
+    setProfiles((list) => [
+      ...list,
+      { id: newProfileId(), name: `Aether ${list.length + 1}`, settings: { ...defaultSettings } },
+    ]);
+
+  return (
+    <>
+      <Space style={{ marginBottom: 16 }}>
         <Button
           type="primary"
           loading={saveMut.isPending}
           disabled={busy}
-          onClick={() => saveMut.mutate(settings)}
+          onClick={() => saveMut.mutate(profiles)}
         >
           {t('pages.aether.save')}
         </Button>
         <Button loading={restartMut.isPending} disabled={busy} onClick={() => restartMut.mutate()}>
           {t('pages.aether.restart')}
         </Button>
+        <Button icon={<PlusOutlined aria-hidden />} onClick={add} disabled={busy}>
+          {t('pages.aether.addProfile')}
+        </Button>
       </Space>
-    </Form>
-  );
-}
 
-function AetherStatusCard({ status }: { status: AetherStatus | null }) {
-  const { t } = useTranslation();
-  return (
-    <Card title={t('pages.aether.status')}>
-      <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        <Space>
-          {status?.running ? (
-            <Tag color="green">{t('pages.aether.statusRunning')}</Tag>
-          ) : (
-            <Tag>{t('pages.aether.statusStopped')}</Tag>
-          )}
-          {status?.running &&
-            (status.ready ? (
-              <Tag color="blue">{t('pages.aether.statusReady')}</Tag>
-            ) : (
-              <Tag color="orange">{t('pages.aether.statusNotReady')}</Tag>
-            ))}
-        </Space>
-        <div>
-          {t('pages.aether.port')}: <Typography.Text code>{status?.port ?? '-'}</Typography.Text>
-        </div>
-        {status?.pid ? (
-          <div>
-            {t('pages.aether.pid')}: <Typography.Text code>{status.pid}</Typography.Text>
-          </div>
-        ) : null}
-        {status?.lastErr ? <Typography.Text type="danger">{status.lastErr}</Typography.Text> : null}
-      </Space>
-    </Card>
+      {profiles.length === 0 ? (
+        <Typography.Text type="secondary">{t('pages.aether.noProfiles')}</Typography.Text>
+      ) : (
+        <Row gutter={[16, 16]}>
+          {profiles.map((p) => (
+            <Col key={p.id} xs={24} lg={12}>
+              <Card
+                title={
+                  <Space>
+                    <Switch
+                      aria-label={t('pages.aether.enable')}
+                      checked={p.settings.enabled}
+                      onChange={(enabled) => update(p.id, { settings: { ...p.settings, enabled } })}
+                    />
+                    <Input
+                      aria-label={t('pages.aether.profileName')}
+                      value={p.name}
+                      onChange={(e) => update(p.id, { name: e.target.value })}
+                      style={{ width: 180 }}
+                      placeholder={t('pages.aether.profileName')}
+                    />
+                  </Space>
+                }
+                extra={
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined aria-hidden />}
+                    onClick={() => remove(p.id)}
+                    aria-label={t('remove')}
+                  />
+                }
+              >
+                <div style={{ marginBottom: 12 }}>
+                  <StatusBadge status={statusById.get(p.id)} />
+                </div>
+                <Form layout="vertical">
+                  <ProfileFields
+                    value={p.settings}
+                    onChange={(settings) => update(p.id, { settings })}
+                  />
+                </Form>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
+    </>
   );
 }
 
 function AetherPage() {
   const { t } = useTranslation();
   const { antdThemeConfig } = useTheme();
-  const statusQuery = useQuery({
-    queryKey: keys.aether.status(),
-    queryFn: fetchStatus,
-    retry: false,
-  });
+  const query = useQuery({ queryKey: keys.aether.status(), queryFn: fetchView, retry: false });
 
-  const loaded = statusQuery.data;
-  // The backend marshals an unset extraArgs slice as JSON null, which would
-  // overwrite the default []; coerce it back to an array so the editor's join()
-  // never sees null.
-  const initial: AetherSettings = loaded?.settings
-    ? { ...defaultSettings, ...loaded.settings, extraArgs: loaded.settings.extraArgs ?? [] }
-    : defaultSettings;
-  // Remount the editor when a fresh server payload arrives so it reseeds without
-  // an effect. updatedAt changes on every successful fetch.
-  const editorKey = statusQuery.dataUpdatedAt;
+  const data = query.data;
+  const editorKey = query.dataUpdatedAt;
 
   return (
     <ConfigProvider theme={antdThemeConfig}>
@@ -420,19 +446,14 @@ function AetherPage() {
               {t('pages.aether.subtitle')}
             </Typography.Paragraph>
 
-            {statusQuery.isLoading ? (
+            {query.isLoading ? (
               <Spin />
             ) : (
-              <Row gutter={16}>
-                <Col xs={24} lg={16}>
-                  <Card>
-                    <AetherEditor key={editorKey} initial={initial} />
-                  </Card>
-                </Col>
-                <Col xs={24} lg={8}>
-                  <AetherStatusCard status={loaded?.status ?? null} />
-                </Col>
-              </Row>
+              <AetherManager
+                key={editorKey}
+                initial={data?.profiles ?? []}
+                statuses={data?.statuses ?? []}
+              />
             )}
           </Layout.Content>
         </Layout>

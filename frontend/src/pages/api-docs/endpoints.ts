@@ -263,59 +263,24 @@ export const sections: readonly Section[] = [
         method: 'GET',
         path: '/panel/api/aether/status',
         summary:
-          'Return the saved Aether settings and the live state of the core process (running, ready, loopback SOCKS port, pid, last error).',
+          'Return the saved Aether profiles and the live state of each running core (running, ready, loopback ports, pid, last error).',
         response:
-          '{\n  "success": true,\n  "obj": {\n    "settings": { "enabled": true, "socksPort": 2019, "mode": "masque", "psiphon": "chain" },\n    "status": { "running": true, "ready": true, "port": 2019, "pid": 1234 }\n  }\n}',
+          '{\n  "success": true,\n  "obj": {\n    "profiles": [\n      { "id": "home", "name": "Home", "settings": { "enabled": true, "mode": "gool", "transport": "h3" } }\n    ],\n    "statuses": [\n      { "id": "home", "name": "Home", "running": true, "ready": true, "port": 2019, "dialPort": 2019, "pid": 1234 }\n    ]\n  }\n}',
       },
       {
         method: 'POST',
         path: '/panel/api/aether/settings',
         summary:
-          'Validate and persist the Aether settings, then rebuild the Xray config so the core and the injected outbound reconcile. Body is the settings object.',
+          'Validate and persist the whole Aether profile list, then rebuild the Xray config so the cores and injected outbounds reconcile. Body is { profiles: [...] }.',
         params: [
           {
-            name: 'enabled',
+            name: 'profiles',
             in: 'body',
-            type: 'boolean',
-            desc: 'Whether the Aether core may run.',
-          },
-          {
-            name: 'socksPort',
-            in: 'body',
-            type: 'number',
-            desc: 'Loopback SOCKS5 port; 0 uses the default (2019).',
-            optional: true,
-          },
-          {
-            name: 'mode',
-            in: 'body',
-            type: 'string',
-            desc: 'Tunnel shape: masque, gool, or mim.',
-            optional: true,
-          },
-          {
-            name: 'psiphon',
-            in: 'body',
-            type: 'string',
-            desc: 'Psiphon combination: empty (off), chain, reverse, or only.',
-            optional: true,
-          },
-          {
-            name: 'psiphonRegion',
-            in: 'body',
-            type: 'string',
-            desc: 'Two-letter exit country for Psiphon, e.g. DE.',
-            optional: true,
-          },
-          {
-            name: 'psiphonCdnSets',
-            in: 'body',
-            type: 'string',
-            desc: 'Comma-separated Psiphon CDN edge lists.',
-            optional: true,
+            type: 'array',
+            desc: 'The full list of Aether profiles. Each profile is { id, name, settings } where settings holds mode, transport, scan, ipVersion, obfuscation, fragment, psiphon(+region/cdnSets), tor and extraArgs.',
           },
         ],
-        body: '{\n  "enabled": true,\n  "socksPort": 2019,\n  "mode": "gool",\n  "psiphon": "chain",\n  "psiphonRegion": "DE"\n}',
+        body: '{\n  "profiles": [\n    {\n      "id": "home",\n      "name": "Home",\n      "settings": { "enabled": true, "mode": "gool", "transport": "h3", "psiphon": "" }\n    }\n  ]\n}',
         response: '{\n  "success": true,\n  "msg": "Aether settings saved"\n}',
       },
       {

@@ -8,19 +8,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AetherController exposes the panel's Aether core: read its saved settings and
-// live process status, save new settings, and restart Xray so a routed inbound
-// picks up the change.
+// AetherController exposes the panel's Aether profiles: read the saved profiles
+// and the live state of each core, save the profile list, and restart Xray so
+// routed inbounds pick up the change.
 type AetherController struct {
 	settingService service.SettingService
 	xrayService    service.XrayService
 }
 
-// aetherStatusView is what the settings page renders: the saved config plus the
-// live state of the core process.
-type aetherStatusView struct {
-	Settings aether.Settings `json:"settings"`
-	Status   aether.Status   `json:"status"`
+// aetherView is what the settings page renders: the saved profiles plus the live
+// state of each running core.
+type aetherView struct {
+	Profiles []aether.Profile       `json:"profiles"`
+	Statuses []aether.ProfileStatus `json:"statuses"`
+}
+
+// aetherProfilesForm is the save payload: the whole profile list.
+type aetherProfilesForm struct {
+	Profiles []aether.Profile `json:"profiles"`
 }
 
 // NewAetherController creates the controller and registers its routes under
@@ -40,28 +45,28 @@ func (a *AetherController) initRouter(g *gin.RouterGroup) {
 }
 
 func (a *AetherController) status(c *gin.Context) {
-	settings, err := a.settingService.GetAetherSettings()
+	profiles, err := a.settingService.GetAetherProfiles()
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.aether.toasts.getSettings"), err)
 		return
 	}
-	jsonObj(c, aetherStatusView{
-		Settings: settings,
-		Status:   aether.GetManager().Status(),
+	jsonObj(c, aetherView{
+		Profiles: profiles,
+		Statuses: aether.GetManager().Statuses(),
 	}, nil)
 }
 
 func (a *AetherController) saveSettings(c *gin.Context) {
-	form, ok := middleware.BindAndValidate[aether.Settings](c)
+	form, ok := middleware.BindAndValidate[aetherProfilesForm](c)
 	if !ok {
 		return
 	}
-	if err := a.settingService.SetAetherSettings(*form); err != nil {
+	if err := a.settingService.SetAetherProfiles(form.Profiles); err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.aether.toasts.saveSettings"), err)
 		return
 	}
-	// Rebuild the config so the core reconciles to the new settings; the
-	// generated outbound/routing follow in the same rebuild.
+	// Rebuild the config so the cores reconcile to the new profiles; the
+	// generated outbounds/routing follow in the same rebuild.
 	if err := a.xrayService.RestartXray(false); err != nil {
 		jsonMsg(c, I18nWeb(c, "pages.aether.toasts.restart"), err)
 		return

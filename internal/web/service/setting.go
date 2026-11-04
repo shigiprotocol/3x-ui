@@ -207,6 +207,7 @@ var defaultValueMap = map[string]string{
 	"xrayOutboundTestUrl":         "https://www.google.com/generate_204",
 	"panelOutbound":               "",
 	"aetherSettings":              "",
+	"aetherProfiles":              "",
 	"devChannelEnable":            "false",
 
 	// LDAP defaults
@@ -564,36 +565,46 @@ func (s *SettingService) SetPanelOutbound(tag string) error {
 	return s.setString("panelOutbound", tag)
 }
 
-// GetAetherSettings returns the panel's Aether core configuration. A blank or
-// unparsable stored value yields the off default, so the feature stays safely
-// disabled when nothing was ever saved.
-func (s *SettingService) GetAetherSettings() (aether.Settings, error) {
-	raw, err := s.getString("aetherSettings")
+// GetAetherProfiles returns the panel's Aether profiles. It migrates a legacy
+// single aetherSettings row into one profile so an upgraded panel keeps working,
+// and normalizes each profile's settings.
+func (s *SettingService) GetAetherProfiles() ([]aether.Profile, error) {
+	raw, err := s.getString("aetherProfiles")
 	if err != nil {
-		return aether.DefaultSettings(), err
+		return nil, err
 	}
-	if raw == "" {
-		return aether.DefaultSettings(), nil
+	if raw != "" {
+		var profiles []aether.Profile
+		if err := json.Unmarshal([]byte(raw), &profiles); err != nil {
+			return []aether.Profile{}, nil
+		}
+		for i := range profiles {
+			profiles[i].Settings = profiles[i].Settings.Normalized()
+		}
+		return profiles, nil
 	}
-	var cfg aether.Settings
-	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
-		return aether.DefaultSettings(), nil
+
+	// Migrate a legacy single-core config, if any, into one profile.
+	legacy, lerr := s.getString("aetherSettings")
+	if lerr == nil && legacy != "" {
+		var cfg aether.Settings
+		if json.Unmarshal([]byte(legacy), &cfg) == nil {
+			return []aether.Profile{{ID: "default", Name: "Default", Settings: cfg.Normalized()}}, nil
+		}
 	}
-	// A row saved before a field had a value yields a zero port / blank mode /
-	// nil extraArgs; normalize so the UI never shows 0 or an empty mode.
-	return cfg.Normalized(), nil
+	return []aether.Profile{}, nil
 }
 
-// SetAetherSettings validates and persists the Aether configuration.
-func (s *SettingService) SetAetherSettings(cfg aether.Settings) error {
-	if err := cfg.Validate(); err != nil {
+// SetAetherProfiles validates and persists the Aether profiles.
+func (s *SettingService) SetAetherProfiles(profiles []aether.Profile) error {
+	if err := aether.ValidateProfiles(profiles); err != nil {
 		return err
 	}
-	raw, err := json.Marshal(cfg)
+	raw, err := json.Marshal(profiles)
 	if err != nil {
 		return err
 	}
-	return s.setString("aetherSettings", string(raw))
+	return s.setString("aetherProfiles", string(raw))
 }
 
 // PanelEgressProxyURL resolves the loopback SOCKS bridge that the generated

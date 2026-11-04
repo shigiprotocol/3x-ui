@@ -15,185 +15,209 @@ import (
 	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 )
 
-// readyTimeout bounds how long Start waits for the SOCKS listener to accept a
-// connection before reporting the process as not-yet-ready; the process keeps
-// running regardless, because Aether may still be scanning for an endpoint.
+// readyTimeout bounds how long the readiness probe waits for a core's dial port
+// to accept a connection; the process keeps running regardless, because Aether
+// may still be scanning for an endpoint.
 const readyTimeout = 20 * time.Second
 
-// Status is a snapshot of the manager the panel renders.
-type Status struct {
+// ProfileStatus is a snapshot of one running core the panel renders.
+type ProfileStatus struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
 	Running  bool     `json:"running"`
 	Ready    bool     `json:"ready"`
 	Port     int      `json:"port"`
+	DialPort int      `json:"dialPort"`
 	Pid      int      `json:"pid"`
 	LastErr  string   `json:"lastErr"`
 	Settings Settings `json:"settings"`
 }
 
-// Manager owns the single Aether child process. One process serves every inbound
-// that routes through Aether, because all of them dial the same loopback SOCKS
-// listener — the same one-core design PattNG uses on the client.
-type Manager struct {
-	mu          sync.Mutex
+// instance owns one Aether child process.
+type instance struct {
 	cmd         *exec.Cmd
 	fingerprint string
 	settings    Settings
+	name        string
 	ready       bool
 	lastErr     string
 }
 
+// Manager owns one Aether child process per profile, keyed by profile ID. Each
+// inbound dials the loopback SOCKS listener of the profile it routes through.
+type Manager struct {
+	mu        sync.Mutex
+	instances map[string]*instance
+}
+
 var (
-	instance *Manager
-	once     sync.Once
+	instanceMgr *Manager
+	once        sync.Once
 )
 
 // GetManager returns the process-wide Aether manager.
 func GetManager() *Manager {
-	once.Do(func() { instance = &Manager{settings: DefaultSettings()} })
-	return instance
+	once.Do(func() { instanceMgr = &Manager{instances: make(map[string]*instance)} })
+	return instanceMgr
 }
 
-// Status returns a snapshot for the panel.
-func (m *Manager) Status() Status {
+// DialPort returns the loopback port the panel's outbound should dial for the
+// given profile, or 0 when the profile is unknown.
+func (m *Manager) DialPort(profileID string) int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	st := Status{
-		Running:  m.cmd != nil && m.cmd.Process != nil,
-		Ready:    m.ready,
-		Port:     m.settings.Port(),
-		LastErr:  m.lastErr,
-		Settings: m.settings,
+	if in, ok := m.instances[profileID]; ok {
+		return in.settings.DialPort()
 	}
-	if st.Running {
-		st.Pid = m.cmd.Process.Pid
+	return 0
+}
+
+// Statuses returns a snapshot of every known profile, running or not.
+func (m *Manager) Statuses() []ProfileStatus {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]ProfileStatus, 0, len(m.instances))
+	for id, in := range m.instances {
+		st := ProfileStatus{
+			ID:       id,
+			Name:     in.name,
+			Running:  in.cmd != nil && in.cmd.Process != nil,
+			Ready:    in.ready,
+			Port:     in.settings.Port(),
+			DialPort: in.settings.DialPort(),
+			LastErr:  in.lastErr,
+			Settings: in.settings,
+		}
+		if st.Running {
+			st.Pid = in.cmd.Process.Pid
+		}
+		out = append(out, st)
 	}
-	return st
+	return out
 }
 
-// IsRunning reports whether the child process is alive.
-func (m *Manager) IsRunning() bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.cmd != nil && m.cmd.Process != nil
-}
-
-// Port is the loopback SOCKS port the current settings use.
-func (m *Manager) Port() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.settings.Port()
-}
-
-// DialPort is the loopback port the panel's outbound should connect to for the
-// current settings (psiphon/tor listener when chained, else the bind port).
-func (m *Manager) DialPort() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.settings.DialPort()
-}
-
-// Apply reconciles the running process with desired settings: starts it when it
-// should run and does not, stops it when it should not, and restarts it when the
-// arguments changed. A no-op when already matching, so it is safe to call on
-// every config rebuild.
-func (m *Manager) Apply(s Settings) error {
-	if err := s.Validate(); err != nil {
-		return err
-	}
+// Reconcile brings the running cores in line with the desired profiles: it
+// starts the enabled ones, stops the removed or disabled ones, and restarts a
+// core whose arguments changed. Profiles must already be Resolve()d so their
+// bind ports are pinned. Errors are logged, not fatal: a core that will not
+// start must not break the others or the generated config.
+func (m *Manager) Reconcile(profiles []Profile) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if !s.Enabled {
-		m.stopLocked()
-		m.settings = s
-		return nil
+	desired := make(map[string]Profile, len(profiles))
+	for _, p := range profiles {
+		desired[p.ID] = p
 	}
 
-	if m.cmd != nil && m.fingerprint == s.Fingerprint() {
-		m.settings = s
-		return nil
+	// Stop and drop cores no longer desired or now disabled.
+	for id, in := range m.instances {
+		p, ok := desired[id]
+		if !ok || !p.Settings.Enabled {
+			m.stopLocked(in)
+			delete(m.instances, id)
+		}
 	}
 
-	m.stopLocked()
-	m.settings = s
-	return m.startLocked(s)
+	for _, p := range profiles {
+		if !p.Settings.Enabled {
+			continue
+		}
+		m.ensureLocked(p)
+	}
 }
 
-// Stop terminates the process if running.
-func (m *Manager) Stop() {
+// StopAll terminates every running core.
+func (m *Manager) StopAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.stopLocked()
+	for id, in := range m.instances {
+		m.stopLocked(in)
+		delete(m.instances, id)
+	}
 }
 
-func (m *Manager) startLocked(s Settings) error {
+func (m *Manager) ensureLocked(p Profile) {
+	fp := p.Settings.Fingerprint()
+	if in, ok := m.instances[p.ID]; ok {
+		in.name = p.Name
+		if in.cmd != nil && in.fingerprint == fp {
+			in.settings = p.Settings
+			return
+		}
+		m.stopLocked(in)
+	}
+
+	in := &instance{settings: p.Settings, name: p.Name}
+	m.instances[p.ID] = in
+	if err := m.startLocked(p.ID, in, p.Settings); err != nil {
+		logger.Warningf("aether: profile %q (%s): %v", p.Name, p.ID, err)
+	}
+}
+
+func (m *Manager) startLocked(id string, in *instance, s Settings) error {
 	binPath := BinaryPath()
 	if _, err := os.Stat(binPath); err != nil {
-		m.lastErr = fmt.Sprintf("aether binary not found at %s", binPath)
-		return fmt.Errorf("aether: %s", m.lastErr)
+		in.lastErr = fmt.Sprintf("aether binary not found at %s", binPath)
+		return fmt.Errorf("%s", in.lastErr)
 	}
 
-	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, binPath, s.Args()...)
+	cmd := exec.CommandContext(context.Background(), binPath, s.Args()...)
 
 	// Aether runs psiphon-tunnel-core itself by name; make the bin folder
-	// discoverable, and point its data dir at a writable, persistent place.
+	// discoverable and run from it so the core finds pt/ beside its binary.
 	binDir, _ := filepath.Abs(config.GetBinFolderPath())
-	cmd.Env = append(os.Environ(),
-		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
-	)
+	cmd.Env = append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	cmd.Dir = binDir
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		m.lastErr = err.Error()
-		return fmt.Errorf("aether: stdout pipe: %w", err)
+		in.lastErr = err.Error()
+		return err
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		m.lastErr = err.Error()
-		return fmt.Errorf("aether: stderr pipe: %w", err)
+		in.lastErr = err.Error()
+		return err
 	}
-
 	if err := cmd.Start(); err != nil {
-		m.lastErr = err.Error()
-		return fmt.Errorf("aether: start: %w", err)
+		in.lastErr = err.Error()
+		return err
 	}
 
-	m.cmd = cmd
-	m.fingerprint = s.Fingerprint()
-	m.ready = false
-	m.lastErr = ""
+	in.cmd = cmd
+	in.fingerprint = s.Fingerprint()
+	in.ready = false
+	in.lastErr = ""
 
-	go relayLog(stdout)
-	go relayLog(stderr)
+	tag := in.name
+	go relayLog(stdout, tag)
+	go relayLog(stderr, tag)
 
-	// Watch for exit so a crashed process does not look alive in Status.
 	watched := cmd
 	go func() {
 		err := watched.Wait()
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		if m.cmd == watched {
+		if cur, ok := m.instances[id]; ok && cur.cmd == watched {
 			if err != nil {
-				m.lastErr = fmt.Sprintf("aether exited: %v", err)
-				logger.Warningf("aether: process exited: %v", err)
+				cur.lastErr = fmt.Sprintf("aether exited: %v", err)
+				logger.Warningf("aether: profile %q exited: %v", tag, err)
 			}
-			m.cmd = nil
-			m.ready = false
+			cur.cmd = nil
+			cur.ready = false
 		}
 	}()
 
-	logger.Infof("aether: started on %s:%d (mode=%s psiphon=%s tor=%s)", Loopback, s.Port(), nonEmpty(string(s.Mode), "masque"), nonEmpty(string(s.Psiphon), "off"), nonEmpty(string(s.Tor), "off"))
+	logger.Infof("aether: profile %q started on %s:%d (mode=%s psiphon=%s tor=%s)", tag, Loopback, s.Port(), nonEmpty(string(s.Mode), "masque"), nonEmpty(string(s.Psiphon), "off"), nonEmpty(string(s.Tor), "off"))
 
-	// Probe the port the panel actually dials, so readiness reflects the carrier
-	// that reaches the internet (psiphon/tor listener when chained).
 	port := s.DialPort()
+	fp := s.Fingerprint()
 	go func() {
 		if waitForListener(port, readyTimeout) {
 			m.mu.Lock()
-			if m.fingerprint == s.Fingerprint() && m.cmd != nil {
-				m.ready = true
+			if cur, ok := m.instances[id]; ok && cur.cmd != nil && cur.fingerprint == fp {
+				cur.ready = true
 			}
 			m.mu.Unlock()
 		}
@@ -201,16 +225,17 @@ func (m *Manager) startLocked(s Settings) error {
 	return nil
 }
 
-func (m *Manager) stopLocked() {
-	if m.cmd == nil || m.cmd.Process == nil {
-		m.cmd = nil
-		m.ready = false
+func (m *Manager) stopLocked(in *instance) {
+	if in == nil || in.cmd == nil || in.cmd.Process == nil {
+		if in != nil {
+			in.cmd = nil
+			in.ready = false
+		}
 		return
 	}
-	proc := m.cmd.Process
-	m.cmd = nil
-	m.ready = false
-	// Signal then hard-kill after a grace period, off the lock-holding path.
+	proc := in.cmd.Process
+	in.cmd = nil
+	in.ready = false
 	go func() {
 		_ = proc.Signal(os.Interrupt)
 		time.Sleep(2 * time.Second)
@@ -218,11 +243,11 @@ func (m *Manager) stopLocked() {
 	}()
 }
 
-func relayLog(r io.Reader) {
+func relayLog(r io.Reader, tag string) {
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
-		logger.Debugf("aether: %s", scanner.Text())
+		logger.Debugf("aether[%s]: %s", tag, scanner.Text())
 	}
 }
 
